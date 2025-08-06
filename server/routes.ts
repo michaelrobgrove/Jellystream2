@@ -7,6 +7,8 @@ import Stripe from "stripe";
 import axios from "axios";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import Mailgun from "mailgun.js";
+import FormData from "form-data";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
@@ -14,6 +16,146 @@ if (!process.env.STRIPE_SECRET_KEY) {
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-07-30.basil",
 });
+
+// Initialize Mailgun
+const mailgun = new Mailgun(FormData);
+const mg = mailgun.client({
+  username: 'api',
+  key: process.env.MAILGUN_API_KEY || '',
+});
+
+// Email service functions
+async function sendWelcomeEmail(email: string, username: string, password: string, planType: string) {
+  if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN || !process.env.MAILGUN_FROM_EMAIL) {
+    console.warn('Mailgun not configured, skipping welcome email');
+    return;
+  }
+
+  try {
+    const messageData = {
+      from: process.env.MAILGUN_FROM_EMAIL,
+      to: email,
+      subject: 'Welcome to AlfredFlix - Your Account is Ready!',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #111; color: #fff; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #f59e0b; margin: 0;">AlfredFlix</h1>
+            <p style="color: #9ca3af; margin: 5px 0;">Premium Streaming Experience</p>
+          </div>
+          
+          <h2 style="color: #f59e0b;">Welcome ${username}!</h2>
+          <p>Your AlfredFlix account has been created successfully. Here are your login details:</p>
+          
+          <div style="background: #1f1f1f; border: 1px solid #374151; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #f59e0b; margin-top: 0;">Login Details</h3>
+            <p><strong>Username:</strong> ${username}</p>
+            <p><strong>Password:</strong> ${password}</p>
+            <p><strong>Plan:</strong> ${planType.charAt(0).toUpperCase() + planType.slice(1)}</p>
+            <p><strong>Login URL:</strong> <a href="https://alfredflix.stream/login" style="color: #f59e0b;">https://alfredflix.stream/login</a></p>
+          </div>
+          
+          <p>You can now access your premium streaming library and start enjoying your content.</p>
+          <p style="color: #9ca3af; font-size: 14px; margin-top: 30px;">If you have any questions, please contact our support team.</p>
+        </div>
+      `
+    };
+
+    await mg.messages.create(process.env.MAILGUN_DOMAIN, messageData);
+    console.log(`Welcome email sent to ${email}`);
+  } catch (error) {
+    console.error('Failed to send welcome email:', error);
+  }
+}
+
+async function sendAccountDeletionEmail(email: string, username: string) {
+  if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN || !process.env.MAILGUN_FROM_EMAIL) {
+    return;
+  }
+
+  try {
+    const messageData = {
+      from: process.env.MAILGUN_FROM_EMAIL,
+      to: email,
+      subject: 'AlfredFlix Account Deleted',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #111; color: #fff; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #f59e0b; margin: 0;">AlfredFlix</h1>
+          </div>
+          
+          <h2 style="color: #f59e0b;">Account Deleted</h2>
+          <p>Hello ${username},</p>
+          <p>Your AlfredFlix account has been deleted as requested. All your data and access has been removed.</p>
+          <p>If this was done in error, please contact our support team immediately.</p>
+          <p style="color: #9ca3af; font-size: 14px; margin-top: 30px;">Thank you for being part of AlfredFlix.</p>
+        </div>
+      `
+    };
+
+    await mg.messages.create(process.env.MAILGUN_DOMAIN, messageData);
+    console.log(`Account deletion email sent to ${email}`);
+  } catch (error) {
+    console.error('Failed to send deletion email:', error);
+  }
+}
+
+// Configure Jellyfin user permissions based on plan type
+async function configureJellyfinUserPermissions(jellyfinUserId: string, planType: string) {
+  try {
+    const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+    const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+
+    // Get current user policy
+    const userResponse = await axios.get(`${JELLYFIN_URL}/Users/${jellyfinUserId}`, {
+      headers: { 
+        'X-Emby-Token': API_KEY,
+        'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+      }
+    });
+
+    const userPolicy = userResponse.data.Policy || {};
+
+    // Configure permissions based on plan type
+    const updatedPolicy = {
+      ...userPolicy,
+      IsAdministrator: false,
+      IsHidden: false,
+      IsDisabled: false,
+      EnableAllDevices: true,
+      EnableAllChannels: true,
+      EnableAllFolders: true,
+      EnableContentDeletion: false,
+      EnableContentDownloading: true,
+      EnableSyncTranscoding: true,
+      EnableMediaPlayback: true,
+      EnableAudioPlaybackTranscoding: true,
+      EnableVideoPlaybackTranscoding: true,
+      EnablePlaybackRemuxing: true,
+      EnableContentDeletionFromFolders: [],
+      // Standard users get basic access, Premium users get 4K/UHD access
+      EnabledChannels: planType === 'premium' ? [] : [], // Empty array means all channels
+      EnabledFolders: planType === 'premium' ? [] : [], // Premium gets all folders including 4K
+      BlockedChannels: [],
+      BlockedMediaFolders: planType === 'standard' ? [] : [], // Standard might have 4K blocked
+      InvalidLoginAttemptCount: 3,
+      EnablePublicSharing: false,
+      MaxParentalRating: planType === 'premium' ? null : 1000, // No restrictions for premium
+    };
+
+    // Update user policy
+    await axios.post(`${JELLYFIN_URL}/Users/${jellyfinUserId}/Policy`, updatedPolicy, {
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Emby-Token': API_KEY,
+        'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+      }
+    });
+
+    console.log(`Configured ${planType} permissions for Jellyfin user ${jellyfinUserId}`);
+  } catch (error) {
+    console.error('Failed to configure Jellyfin user permissions:', error);
+  }
+}
 
 // Configure passport
 passport.use(new LocalStrategy(async (username, password, done) => {
@@ -178,6 +320,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jellyfinUserId: jellyfinUser.Id
         });
 
+        // Configure Jellyfin user permissions based on plan type
+        await configureJellyfinUserPermissions(jellyfinUser.Id, planType);
+
+        // Send welcome email with login details
+        await sendWelcomeEmail(email, username, password, planType);
+
         console.log(`Created user ${username} in both AlfredFlix and Jellyfin (ID: ${jellyfinUser.Id})`);
         res.json(updatedUser);
         
@@ -198,8 +346,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
+      // Get user details before deletion for email notification
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Delete from Jellyfin server if user has Jellyfin ID
+      if (user.jellyfinUserId) {
+        try {
+          const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+          const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+          
+          await axios.delete(`${JELLYFIN_URL}/Users/${user.jellyfinUserId}`, {
+            headers: { 
+              'X-Emby-Token': API_KEY,
+              'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+            }
+          });
+          console.log(`Deleted user ${user.username} from Jellyfin (ID: ${user.jellyfinUserId})`);
+        } catch (jellyfinError) {
+          console.error('Failed to delete user from Jellyfin:', jellyfinError);
+          // Continue with AlfredFlix deletion even if Jellyfin deletion fails
+        }
+      }
+
+      // Delete from AlfredFlix database
       await storage.deleteUser(id);
-      res.json({ success: true, message: "User deleted successfully" });
+
+      // Send account deletion email
+      await sendAccountDeletionEmail(user.email, user.username);
+
+      res.json({ success: true, message: "User deleted successfully from both systems" });
     } catch (error) {
       console.error('Delete user error:', error);
       res.status(500).json({ error: "Failed to delete user" });
