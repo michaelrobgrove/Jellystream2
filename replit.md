@@ -44,7 +44,7 @@ Preferred communication style: Simple, everyday language.
 # External Dependencies
 
 ## Media Services
-- **Jellyfin Server**: Core media server at apex.alfredflix.stream for content management and streaming
+- **Jellyfin Server**: Core media server at watch.alfredflix.stream for content management and streaming (temporary DNS - will change back to apex.alfredflix.stream when DNS propagates)
 - **Jellyseerr**: Content request management system at requests.alfredflix.stream with API key authentication
 - **TMDB API**: Movie/TV show metadata and search enhancement with API key 88c86aad48e750e724b36296cc69383f
 

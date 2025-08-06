@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const JELLYFIN_URL = import.meta.env.VITE_JELLYFIN_URL || 'https://apex.alfredflix.stream';
+const JELLYFIN_URL = import.meta.env.VITE_JELLYFIN_URL || 'https://watch.alfredflix.stream';
 
 export interface JellyfinUser {
   Id: string;
@@ -49,6 +49,11 @@ class JellyfinAPI {
       const response = await axios.post(`${JELLYFIN_URL}/Users/AuthenticateByName`, {
         Username: username,
         Pw: password
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        }
       });
 
       this.accessToken = response.data.AccessToken;
@@ -57,7 +62,14 @@ class JellyfinAPI {
       return response.data;
     } catch (error) {
       console.error('Jellyfin authentication failed:', error);
-      throw new Error('Invalid username or password');
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          throw new Error('Invalid username or password');
+        } else if (error.response?.status === 500) {
+          throw new Error('Server error. Please try again later.');
+        }
+      }
+      throw new Error('Failed to connect to media server');
     }
   }
 
