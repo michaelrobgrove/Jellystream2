@@ -1,5 +1,7 @@
-import { type User, type InsertUser, type ContactMessage, type InsertContactMessage } from "@shared/schema";
+import { type User, type InsertUser, type ContactMessage, type InsertContactMessage, users, contactMessages } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -204,4 +206,162 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Database Storage Implementation
+export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        ...insertUser,
+        id: randomUUID(),
+        createdAt: new Date()
+      })
+      .returning();
+    return user;
+  }
+
+  async createContactMessage(insertMessage: InsertContactMessage): Promise<ContactMessage> {
+    const [message] = await db
+      .insert(contactMessages)
+      .values({
+        ...insertMessage,
+        id: randomUUID(),
+        createdAt: new Date()
+      })
+      .returning();
+    return message;
+  }
+
+  async getContactMessages(): Promise<ContactMessage[]> {
+    return db.select().from(contactMessages);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) throw new Error('User not found');
+    return user;
+  }
+
+  async updateStripeCustomerId(id: string, customerId: string): Promise<User> {
+    return this.updateUser(id, { stripeCustomerId: customerId });
+  }
+
+  async updateUserStripeInfo(id: string, info: { customerId: string; subscriptionId: string }): Promise<User> {
+    return this.updateUser(id, { 
+      stripeCustomerId: info.customerId, 
+      stripeSubscriptionId: info.subscriptionId 
+    });
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    if (!result.rowCount) throw new Error('User not found');
+  }
+}
+
+// Initialize database and populate with initial users if empty
+async function initializeDatabase() {
+  try {
+    const existingUsers = await db.select().from(users);
+    
+    if (existingUsers.length === 0) {
+      console.log('Initializing database with default users...');
+      
+      // Create default admin users
+      const defaultUsers = [
+        {
+          id: 'admin-user-id',
+          username: 'admin',
+          password: 'admin123',
+          email: 'admin@alfredflix.com',
+          planType: 'premium',
+          monthlyPrice: '14.99',
+          status: 'active',
+          isAdmin: true,
+        },
+        {
+          id: 'srvadmin-user-id',
+          username: 'srvadmin',
+          password: 'admin123',
+          email: 'srvadmin@alfredflix.com',
+          planType: 'premium',
+          monthlyPrice: '14.99',
+          status: 'active',
+          isAdmin: true,
+          jellyfinUserId: '2bfcb58e3dce4812ad2a96657a53d597',
+        },
+        {
+          id: 'stddemo-user-id',
+          username: 'stddemo',
+          password: '12345',
+          email: 'stddemo@alfredflix.com',
+          planType: 'standard',
+          monthlyPrice: '9.99',
+          status: 'active',
+          isAdmin: false,
+          jellyfinUserId: 'c435ec8aa9e34d3995864085d73230c4',
+        },
+        {
+          id: 'premdemo-user-id',
+          username: 'premdemo',
+          password: '12345',
+          email: 'premdemo@alfredflix.com',
+          planType: 'premium',
+          monthlyPrice: '14.99',
+          status: 'active',
+          isAdmin: false,
+          jellyfinUserId: 'b017ae7d38824abd95d71d183a03b0fc',
+        },
+        {
+          id: 'masteradm-user-id',
+          username: 'masteradm',
+          password: 'MasterPlan6172',
+          email: 'masteradm@alfredflix.com',
+          planType: 'premium',
+          monthlyPrice: '14.99',
+          status: 'active',
+          isAdmin: true,
+          jellyfinUserId: '500716705ea1402e81d5a5c946aefe67',
+        }
+      ];
+
+      for (const user of defaultUsers) {
+        await db.insert(users).values({
+          ...user,
+          createdAt: new Date()
+        });
+      }
+      
+      console.log('Database initialized with default users');
+    }
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+  }
+}
+
+// Initialize and export storage
+const initializeStorage = async (): Promise<IStorage> => {
+  await initializeDatabase();
+  return new DatabaseStorage();
+};
+
+// Export a promise that resolves to the initialized storage
+export const storage = await initializeStorage();
