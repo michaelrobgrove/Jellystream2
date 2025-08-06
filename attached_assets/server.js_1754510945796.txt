@@ -1,0 +1,616 @@
+// server.js
+require('dotenv').config();
+const express = require('express');
+const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const cron = require('node-cron');
+const axios = require('axios');
+const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+
+// Debug logging for admin token
+console.log('Admin token loaded:', process.env.ADMIN_TOKEN);
+console.log('Admin token length:', process.env.ADMIN_TOKEN?.length);
+
+// Configure nodemailer
+const transporter = nodemailer.createTransport({
+ host: process.env.SMTP_HOST,
+ port: process.env.SMTP_PORT,
+ secure: false, // true for 465, false for other ports
+ auth: {
+   user: process.env.SMTP_USER,
+   pass: process.env.SMTP_PASSWORD
+ }
+});
+
+// Function to send welcome email
+async function sendWelcomeEmail(userEmail, username, password, planType, expiresAt) {
+ try {
+   // Read email template
+   const templatePath = path.join(__dirname, 'email-template', 'welcome-email.html');
+   let emailTemplate = fs.readFileSync(templatePath, 'utf8');
+   
+   // Calculate next renewal date and price
+   const nextRenewal = new Date(expiresAt).toLocaleDateString('en-US', {
+     year: 'numeric',
+     month: 'long',
+     day: 'numeric'
+   });
+   
+   const planPrice = planType === 'premium' ? '$19.99' : '$9.99';
+   const planName = planType === 'premium' ? 'Premium Plan' : 'Standard Plan';
+   
+   // Replace placeholders in template
+   emailTemplate = emailTemplate
+     .replace(/{{username}}/g, username)
+     .replace(/{{password}}/g, password)
+     .replace(/{{planName}}/g, planName)
+     .replace(/{{nextRenewal}}/g, nextRenewal)
+     .replace(/{{planPrice}}/g, planPrice);
+   
+   const mailOptions = {
+     from: `"AlfredFlix" <${process.env.SMTP_USER}>`,
+     to: userEmail,
+     subject: 'Welcome to AlfredFlix! Your Account Details',
+     html: emailTemplate
+   };
+   
+   await transporter.sendMail(mailOptions);
+   console.log(`📧 Welcome email sent to ${userEmail}`);
+   
+ } catch (error) {
+   console.error('❌ Error sending welcome email:', error.message);
+ }
+}
+
+// Product ID mapping
+const PRODUCT_IDS = {
+ STANDARD: 'prod_So6zATJn6attMN',
+ PREMIUM: 'prod_So70fhSRJOPRdi'
+};
+
+// Library and policy configuration
+const PLAN_CONFIG = {
+ standard: {
+   libraries: ['movies', 'shows'],
+   maxStreams: 2,
+   bitrateLimit: 100000000, // 100 Mbps in bits per second
+   enabledFolders: [], // Will be populated with library IDs
+   enableRemoteAccess: true,
+   enableDownloads: true,
+   enableTranscoding: false, // Disable transcoding
+   enableConversion: false, // Disable conversion without re-encoding
+   isDisabled: false
+ },
+ premium: {
+   libraries: ['movies', 'shows', 'uhd movies', 'uhd shows'],
+   maxStreams: 4,
+   bitrateLimit: 200000000, // 200 Mbps in bits per second
+   enabledFolders: [], // Will be populated with library IDs
+   enableRemoteAccess: true,
+   enableDownloads: true,
+   enableTranscoding: false, // Disable transcoding
+   enableConversion: false, // Disable conversion without re-encoding
+   isDisabled: false
+ },
+ cancelled: {
+   libraries: [], // No library access
+   maxStreams: 0,
+   bitrateLimit: 0,
+   enabledFolders: [], // No folders
+   enableRemoteAccess: false, // Remote connections disabled
+   enableDownloads: false,
+   enableTranscoding: false,
+   enableConversion: false,
+   isDisabled: true // User disabled
+ }
+};
+
+// Function to get Jellyfin libraries and map them
+async function getJellyfinLibraries() {
+ try {
+   const response = await axios.get(
+     `${process.env.JELLYFIN_URL}/Library/VirtualFolders`,
+     { headers: { 'X-Emby-Token': process.env.JELLYFIN_API_KEY } }
+   );
+   
+   const libraries = response.data;
+   const libraryMap = {};
+   
+   libraries.forEach(lib => {
+     const name = lib.Name.toLowerCase();
+     libraryMap[name] = lib.ItemId;
+   });
+   
+   return libraryMap;
+ } catch (error) {
+   console.error('❌ Error fetching Jellyfin libraries:', error.message);
+   return {};
+ }
+}
+
+// Function to configure user policy based on plan
+async function configureUserPolicy(jellyfinUserId, planType) {
+ try {
+   const libraryMap = await getJellyfinLibraries();
+   const planConfig = PLAN_CONFIG[planType];
+   
+   // Get enabled folder IDs based on plan
+   const enabledFolders = planConfig.libraries
+     .map(libName => libraryMap[libName])
+     .filter(id => id); // Remove undefined IDs
+   
+   const policy = {
+     IsAdministrator: false,
+     IsHidden: true,
+     IsDisabled: planConfig.isDisabled,
+     MaxParentalRating: null,
+     BlockedTags: [],
+     EnableUserPreferenceAccess: true,
+     AccessSchedules: [],
+     BlockUnratedItems: [],
+     EnableRemoteControlOfOtherUsers: false,
+     EnableSharedDeviceControl: false,
+     EnableRemoteAccess: planConfig.enableRemoteAccess,
+     EnableLiveTvManagement: false,
+     EnableLiveTvAccess: false,
+     EnableMediaPlayback: !planConfig.isDisabled,
+     EnableAudioPlaybackTranscoding: !planConfig.isDisabled,
+     EnableVideoPlaybackTranscoding: planConfig.enableTranscoding, // Now controlled by plan
+     EnablePlaybackRemuxing: !planConfig.isDisabled,
+     ForceRemoteSourceTranscoding: false,
+     EnableContentDeletion: false,
+     EnableContentDeletionFromFolders: [],
+     EnableContentDownloading: planConfig.enableDownloads, // Now controlled by plan
+     EnableSyncTranscoding: planConfig.enableTranscoding, // Now controlled by plan
+     EnableMediaConversion: planConfig.enableConversion, // Now controlled by plan
+     EnabledDevices: [],
+     EnableAllDevices: !planConfig.isDisabled,
+     EnabledChannels: [],
+     EnableAllChannels: false,
+     EnabledFolders: enabledFolders,
+     EnableAllFolders: false,
+     InvalidLoginAttemptCount: 3,
+     LoginAttemptsBeforeLockout: 3,
+     MaxActiveSessions: planConfig.maxStreams,
+     EnablePublicSharing: false,
+     BlockedMediaFolders: [],
+     BlockedChannels: [],
+     RemoteClientBitrateLimit: planConfig.bitrateLimit, // Now set based on plan
+     AuthenticationProviderId: "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
+     PasswordResetProviderId: "Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider",
+     SyncPlayAccess: planConfig.isDisabled ? "None" : "CreateAndJoinGroups"
+   };
+   
+   await axios.post(
+     `${process.env.JELLYFIN_URL}/Users/${jellyfinUserId}/Policy`,
+     policy,
+     {
+       headers: {
+         'X-Emby-Token': process.env.JELLYFIN_API_KEY,
+         'Content-Type': 'application/json'
+       }
+     }
+   );
+   
+   if (planType === 'cancelled') {
+     console.log(`🛑 User policy configured for ${planType} plan: User disabled, no library access, remote access disabled`);
+   } else {
+     console.log(`✅ User policy configured for ${planType} plan: ${planConfig.maxStreams} streams, ${planConfig.bitrateLimit / 1000000}Mbps bitrate limit, libraries: ${planConfig.libraries.join(', ')}, downloads: ${planConfig.enableDownloads}, transcoding: ${planConfig.enableTranscoding}`);
+   }
+   
+ } catch (error) {
+   console.error('❌ Error configuring user policy:', error.message);
+   throw error;
+ }
+}
+
+// Stripe webhook handler for subscription cancellations
+app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+ const sig = req.headers['stripe-signature'];
+ let event;
+
+ try {
+   event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+ } catch (err) {
+   console.error('❌ Webhook error:', err.message);
+   return res.status(400).send(`Webhook Error: ${err.message}`);
+ }
+
+ const session = event.data.object;
+
+ if (event.type === 'checkout.session.completed') {
+   try {
+     const customerEmail = session.customer_details?.email;
+     const subscriptionId = session.subscription;
+     const customerId = session.customer;
+     
+     // Get the subscription to determine the plan type
+     const subscription = await customer.subscriptions.retrieve(subscriptionId);
+     const productId = subscription.items.data[0].price.product;
+     
+     // Determine plan type based on product ID
+     let planType = 'standard'; // default
+     if (productId === PRODUCT_IDS.PREMIUM) {
+       planType = 'premium';
+     } else if (productId === PRODUCT_IDS.STANDARD) {
+       planType = 'standard';
+     }
+     
+     const usernameField = session.custom_fields?.find(f => f.key === 'username');
+     const username = usernameField?.text?.value || (customerEmail.split('@')[0] + Math.floor(Math.random() * 10000));
+     const password = Math.random().toString(36).slice(-10);
+
+     const expiresAt = new Date();
+     expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+     // Create Jellyfin user
+     const jellyfinUser = await axios.post(
+       `${process.env.JELLYFIN_URL}/Users/New`,
+       { Name: username },
+       { headers: { 'X-Emby-Token': process.env.JELLYFIN_API_KEY } }
+     );
+
+     const jellyfinUserId = jellyfinUser.data.Id;
+
+     // Set password
+     await axios.post(
+       `${process.env.JELLYFIN_URL}/Users/${jellyfinUserId}/Password`,
+       { NewPw: password },
+       {
+         headers: {
+           'X-Emby-Token': process.env.JELLYFIN_API_KEY,
+           'Content-Type': 'application/json'
+         }
+       }
+     );
+
+     // Configure user policy based on plan
+     await configureUserPolicy(jellyfinUserId, planType);
+
+     // Store user in database
+     await pool.query(
+       `INSERT INTO users 
+         (email, username, password, plan_type, stripe_customer_id, stripe_subscription_id, jellyfin_user_id, status, expires_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       [customerEmail, username, await bcrypt.hash(password, 10), planType, customerId, subscriptionId, jellyfinUserId, 'active', expiresAt]
+     );
+
+     // Send welcome email
+     await sendWelcomeEmail(customerEmail, username, password, planType, expiresAt);
+
+     console.log(`✅ User created: ${customerEmail} (${username}) - ${planType} plan`);
+     res.sendStatus(200);
+   } catch (err) {
+     console.error('❌ Error processing checkout:', err);
+     res.status(500).send('Internal error');
+   }
+ } else if (event.type === 'customer.subscription.deleted') {
+   // Handle subscription cancellation from Stripe
+   try {
+     const subscriptionId = event.data.object.id;
+     
+     // Find user by subscription ID
+     const [[user]] = await pool.query(
+       'SELECT * FROM users WHERE stripe_subscription_id = ?', 
+       [subscriptionId]
+     );
+     
+     if (user) {
+       // Update user to cancelled plan
+       await configureUserPolicy(user.jellyfin_user_id, 'cancelled');
+       
+       // Update database
+       await pool.query(
+         'UPDATE users SET plan_type = ?, status = ? WHERE id = ?',
+         ['cancelled', 'cancelled', user.id]
+       );
+       
+       console.log(`🛑 User subscription cancelled via Stripe: ${user.email} - switched to cancelled plan`);
+     }
+     
+     res.sendStatus(200);
+   } catch (err) {
+     console.error('❌ Error processing subscription cancellation:', err);
+     res.status(500).send('Internal error');
+   }
+ } else {
+   res.sendStatus(200);
+ }
+});
+
+app.use(express.json());
+app.use(express.static('.'));
+app.use(express.static('public'));
+
+const pool = mysql.createPool({
+ host: process.env.DB_HOST,
+ user: process.env.DB_USER,
+ password: process.env.DB_PASSWORD,
+ database: process.env.DB_NAME,
+ waitForConnections: true,
+ connectionLimit: 10
+});
+
+// Updated requireAdmin middleware with debugging
+const requireAdmin = (req, res, next) => {
+ const auth = req.headers['authorization'];
+ console.log('Received auth header:', auth);
+ console.log('Expected token:', `Bearer ${process.env.ADMIN_TOKEN}`);
+ 
+ if (!auth || auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+   console.log('Authentication failed - tokens do not match');
+   return res.status(403).send('Forbidden');
+ }
+ console.log('Authentication successful');
+ next();
+};
+
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+ try {
+   const [rows] = await pool.query('SELECT * FROM users ORDER BY created_at DESC');
+   res.json(rows);
+ } catch (err) {
+   console.error(err);
+   res.status(500).send('Error retrieving users');
+ }
+});
+
+app.post('/api/admin/users/:id/cancel', requireAdmin, async (req, res) => {
+ const userId = req.params.id;
+ try {
+   const [[user]] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+   if (!user) return res.status(404).send('User not found');
+
+   let stripeResult = { success: false, message: '' };
+   let jellyfinResult = { success: false, message: '' };
+
+   // Cancel Stripe subscription
+   if (user.stripe_subscription_id) {
+     try {
+       await customer.subscriptions.delete(user.stripe_subscription_id);
+       stripeResult = { success: true, message: 'Stripe subscription cancelled' };
+       console.log(`💳 Stripe subscription cancelled for ${user.email}`);
+     } catch (stripeErr) {
+       stripeResult = { success: false, message: `Stripe cancellation failed: ${stripeErr.message}` };
+       console.error(`❌ Stripe cancellation failed: ${stripeErr.message}`);
+     }
+   } else {
+     stripeResult = { success: true, message: 'No Stripe subscription to cancel' };
+   }
+
+   // Switch user to cancelled plan
+   if (user.jellyfin_user_id) {
+     try {
+       await configureUserPolicy(user.jellyfin_user_id, 'cancelled');
+       jellyfinResult = { success: true, message: 'User switched to cancelled plan' };
+       console.log(`🛑 User switched to cancelled plan: ${user.jellyfin_user_id}`);
+     } catch (jellyErr) {
+       jellyfinResult = { success: false, message: `Failed to switch to cancelled plan: ${jellyErr.message}` };
+       console.error(`❌ Failed to switch to cancelled plan: ${jellyErr.message}`);
+     }
+   } else {
+     jellyfinResult = { success: false, message: 'No Jellyfin user ID found' };
+   }
+
+   // Update database to cancelled plan
+   await pool.query(
+     'UPDATE users SET plan_type = ?, status = ? WHERE id = ?',
+     ['cancelled', 'cancelled', userId]
+   );
+
+   res.json({
+     success: stripeResult.success && jellyfinResult.success,
+     stripe_cancelled: stripeResult.success,
+     jellyfin_updated: jellyfinResult.success,
+     message: `${stripeResult.message}. ${jellyfinResult.message}`
+   });
+ } catch (err) {
+   console.error(err);
+   res.status(500).send('Error cancelling user');
+ }
+});
+
+// Change user plan endpoint
+app.post('/api/admin/users/:id/change-plan', requireAdmin, async (req, res) => {
+ const userId = req.params.id;
+ const { newPlan } = req.body;
+ 
+ // Validate plan type
+ if (!['standard', 'premium', 'cancelled'].includes(newPlan)) {
+   return res.status(400).json({ 
+     success: false, 
+     message: 'Invalid plan type. Must be standard, premium, or cancelled' 
+   });
+ }
+ 
+ try {
+   const [[user]] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+   if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+   let jellyfinResult = { success: false, message: '' };
+   
+   // Update Jellyfin user policy
+   if (user.jellyfin_user_id) {
+     try {
+       await configureUserPolicy(user.jellyfin_user_id, newPlan);
+       jellyfinResult = { success: true, message: `User policy updated to ${newPlan} plan` };
+       console.log(`📋 User plan changed: ${user.email} -> ${newPlan}`);
+     } catch (jellyErr) {
+       jellyfinResult = { success: false, message: `Failed to update Jellyfin policy: ${jellyErr.message}` };
+       console.error(`❌ Failed to update Jellyfin policy: ${jellyErr.message}`);
+     }
+   } else {
+     jellyfinResult = { success: false, message: 'No Jellyfin user ID found' };
+   }
+
+   // Update database
+   const newStatus = newPlan === 'cancelled' ? 'cancelled' : 'active';
+   await pool.query(
+     'UPDATE users SET plan_type = ?, status = ? WHERE id = ?',
+     [newPlan, newStatus, userId]
+   );
+
+   res.json({
+     success: jellyfinResult.success,
+     jellyfin_updated: jellyfinResult.success,
+     message: jellyfinResult.message
+   });
+ } catch (err) {
+   console.error('❌ Error changing user plan:', err);
+   res.status(500).json({ success: false, message: 'Error changing user plan' });
+ }
+});
+
+// Reactivate user endpoint
+app.post('/api/admin/users/:id/reactivate', requireAdmin, async (req, res) => {
+ const userId = req.params.id;
+ 
+ try {
+   const [[user]] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+   if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+   // Determine what plan to reactivate to - use their existing plan_type unless it's cancelled
+   let reactivatePlan = user.plan_type;
+   if (reactivatePlan === 'cancelled') {
+     reactivatePlan = 'standard'; // Default to standard if they were cancelled
+   }
+
+   let jellyfinResult = { success: false, message: '' };
+   
+   // Update Jellyfin user policy
+   if (user.jellyfin_user_id) {
+     try {
+       await configureUserPolicy(user.jellyfin_user_id, reactivatePlan);
+       jellyfinResult = { success: true, message: `User reactivated with ${reactivatePlan} plan` };
+       console.log(`🔄 User reactivated: ${user.email} -> ${reactivatePlan}`);
+     } catch (jellyErr) {
+       jellyfinResult = { success: false, message: `Failed to reactivate Jellyfin user: ${jellyErr.message}` };
+       console.error(`❌ Failed to reactivate Jellyfin user: ${jellyErr.message}`);
+     }
+   } else {
+     jellyfinResult = { success: false, message: 'No Jellyfin user ID found' };
+   }
+
+   // Update database - extend expiration by 1 month from now
+   const expiresAt = new Date();
+   expiresAt.setMonth(expiresAt.getMonth() + 1);
+   
+   await pool.query(
+     'UPDATE users SET plan_type = ?, status = ?, expires_at = ? WHERE id = ?',
+     [reactivatePlan, 'active', expiresAt, userId]
+   );
+
+   res.json({
+     success: jellyfinResult.success,
+     jellyfin_updated: jellyfinResult.success,
+     message: jellyfinResult.message
+   });
+ } catch (err) {
+   console.error('❌ Error reactivating user:', err);
+   res.status(500).json({ success: false, message: 'Error reactivating user' });
+ }
+});
+
+// Add delete user endpoint
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+ const userId = req.params.id;
+ try {
+   const [[user]] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+   if (!user) return res.status(404).send('User not found');
+
+   let stripeResult = { success: false, message: '' };
+   let jellyfinResult = { success: false, message: '' };
+
+   // Cancel Stripe subscription if exists
+   if (user.stripe_subscription_id) {
+     try {
+       await customer.subscriptions.delete(user.stripe_subscription_id);
+       stripeResult = { success: true, message: 'Stripe subscription cancelled' };
+       console.log(`💳 Stripe subscription cancelled for deletion: ${user.email}`);
+     } catch (stripeErr) {
+       stripeResult = { success: false, message: `Stripe cancellation failed: ${stripeErr.message}` };
+       console.error(`❌ Stripe cancellation failed during deletion: ${stripeErr.message}`);
+     }
+   } else {
+     stripeResult = { success: true, message: 'No Stripe subscription to cancel' };
+   }
+
+   // Switch to cancelled plan first (disable user)
+   if (user.jellyfin_user_id) {
+     try {
+       await configureUserPolicy(user.jellyfin_user_id, 'cancelled');
+       jellyfinResult = { success: true, message: 'Jellyfin user disabled (manual deletion required)' };
+       console.log(`🛑 Jellyfin user disabled for deletion: ${user.jellyfin_user_id}`);
+     } catch (jellyErr) {
+       jellyfinResult = { success: false, message: `Failed to disable Jellyfin user: ${jellyErr.message}` };
+       console.error(`❌ Failed to disable Jellyfin user during deletion: ${jellyErr.message}`);
+     }
+   } else {
+     jellyfinResult = { success: true, message: 'No Jellyfin user to disable' };
+   }
+
+   // Delete from database
+   await pool.query('DELETE FROM users WHERE id = ?', [userId]);
+   console.log(`🗑️ User deleted from database: ${user.email}`);
+
+   res.json({
+     success: true,
+     stripe_cancelled: stripeResult.success,
+     jellyfin_disabled: jellyfinResult.success,
+     message: `User deleted. ${stripeResult.message}. ${jellyfinResult.message}`
+   });
+ } catch (err) {
+   console.error(err);
+   res.status(500).send('Error deleting user');
+ }
+});
+
+// Test email endpoint
+app.post('/api/test-email', requireAdmin, async (req, res) => {
+ const { email } = req.body;
+ 
+ try {
+   await sendWelcomeEmail(
+     email || 'test@example.com',
+     'testuser',
+     'testpass123',
+     'standard',
+     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+   );
+   
+   res.json({ success: true, message: 'Test email sent successfully' });
+ } catch (error) {
+   console.error('❌ Test email failed:', error);
+   res.status(500).json({ success: false, message: 'Failed to send test email' });
+ }
+});
+
+// Cron job to handle expired users
+cron.schedule('0 2 * * *', async () => {
+ const now = new Date();
+ const [users] = await pool.query('SELECT * FROM users WHERE expires_at < ? AND status = "active"', [now]);
+
+ for (const user of users) {
+   try {
+     // Switch expired users to cancelled plan
+     await configureUserPolicy(user.jellyfin_user_id, 'cancelled');
+     await pool.query(
+       'UPDATE users SET plan_type = ?, status = ? WHERE id = ?',
+       ['cancelled', 'expired', user.id]
+     );
+     console.log(`⛔ Expired user switched to cancelled plan: ${user.email} (${user.username})`);
+   } catch (err) {
+     console.error(`❌ Failed to expire ${user.email}:`, err.message);
+   }
+ }
+
+ console.log('✅ Expired users processed and switched to cancelled plan.');
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

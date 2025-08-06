@@ -1,0 +1,172 @@
+# Custom Jellyfin Web Interface Development Request
+
+## Project Overview
+Build a comprehensive, modern web interface for a Jellyfin media server that provides a Netflix-like experience with integrated billing, quality selection, and multi-device support. The interface should be "the ease and smoothness of Stremio with the reliability of my server."
+
+## Server Details & API Credentials
+- **Jellyfin Server**: https://apex.alfredflix.stream
+- **Demo Username**: aftest1
+- **Demo Password**: Demo1234
+- **Jellyseerr Server**: https://requests.alfredflix.stream
+- **Jellyseerr API Key**: MTc1MTU4ODIyNjU2MjNkNGM4YjhkLTUxMDEtNGQxYi1iMDA3LWVhODM1MDc0N2VlMA==
+- **TMDB API Key**: 88c86aad48e750e724b36296cc69383f
+
+## Technical Stack & Requirements
+- **Frontend**: React with Tailwind CSS for modern, responsive design
+- **Architecture**: Multi-page application with React Router for smooth transitions
+- **Backend**: Node.js/Express for API management and authentication
+- **Media Player**: Video.js with custom Jellyfin integration
+- **Storage**: In-memory state management (NO localStorage/sessionStorage)
+- **Deployment**: Structured for Replit with environment variables
+
+## Design & Theming
+- **Base Design**: Use provided CSS styling from https://manage.alfredflix.stream/img/alfredflix2.css for colors and theming
+- **Responsive**: Works perfectly on mobile to desktop
+- **Modern UI**: Clean, contemporary design with smooth animations and hover effects
+- **Brand Colors**: Primary (#f59e0b - amber), Dark themes with zinc backgrounds
+
+## Core Features & Functionality
+
+### 1. Authentication & User Management
+- Users login with Jellyfin username/password
+- Session persistence (until manual logout)
+- Automatic plan detection based on Jellyfin library permissions:
+  - **Standard**: Access to "Movies" + "Shows" (2 libraries)
+  - **Premium**: Access to "Movies" + "UHD Movies" + "Shows" + "UHD Shows" (4 libraries)
+- Dynamic UI based on user's plan type
+
+### 2. Library Management & Quality Selection
+- **Unified Library View**: Show only 2 main categories (Movies, Shows) regardless of plan
+- **Quality Merging**: 
+  - Merge standard and UHD versions into single entries
+  - Items with UHD versions show "4K UHD" tag
+  - When user clicks play → Detail page → Quality selection (1080p, 4K UHD, "Always Highest Quality")
+- **Genre Organization**: Use Jellyfin tags to sort into categories:
+  - Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Kids, Musical, Mystery, Romance, Sci Fi, Thriller, Western
+
+### 3. Advanced Search Integration
+- **Hybrid Search**: Search both Jellyfin server content AND TMDB database
+- **Request System**: 
+  - If content not on server → Show "Request" button → Send to Jellyseerr
+  - If content exists → Navigate to detail page
+  - Use existing Jellyfin credentials for Jellyseerr authentication
+
+### 4. Media Player Features
+- **Pre-roll**: Always play 8-second "alfredflix.mp4" intro before selected media (no skip)
+- **Full Codec Support**: Auto-detect device capabilities
+- **Quality Controls**: Audio/subtitle switching, version selection
+- **Stats Overlay**: Show media stats (quality, direct streaming, bitrate, dropped packets) for troubleshooting
+- **Progress Sync**: Pull watch history and progress from Jellyfin
+
+### 5. Content Organization
+- **Shows Structure**: Shows → Seasons → Episodes with proper hierarchy
+- **Continue Watching**: Unfinished movies and shows with remove option
+- **Next Up**: Next episodes from started shows, prioritize new episodes at top
+- **Watch Progress**: Sync with Jellyfin, allow progress updates
+
+### 6. Multi-Device Support
+- **Main Interface**: Responsive web interface for desktop/mobile
+- **Android TV Dashboard**: 
+  - Separate interface at https://atv.alfredflix.stream
+  - D-pad navigation optimized
+  - TV-friendly layout and controls
+- **Roku Dashboard**:
+  - Separate interface at https://roku.alfredflix.stream  
+  - Roku remote compatibility
+  - TV-optimized UI
+
+### 7. Billing Integration & Upgrades
+- **Plan Detection**: Automatically detect Standard vs Premium users
+- **Upgrade Banner**: Show "Upgrade To Premium" banner for Standard users
+- **Integrated Billing**: Replace Stripe portal with in-app billing management:
+  - View current plan and billing info
+  - Upgrade/downgrade plans
+  - Cancel subscription
+  - View billing history
+- **Seamless Integration**: Connect with existing server.js billing system
+
+### 8. User Settings & Integrations
+- **Password Management**: Allow users to change Jellyfin password
+- **Trakt Integration**: 
+  - OAuth setup for users to link Trakt accounts
+  - Bi-directional sync (Jellyfin ↔ Trakt)
+  - Progress and watch history synchronization
+
+## Existing Infrastructure Integration
+
+### Current Billing System (Fix Required)
+The existing system has email template issues - placeholders not being replaced properly. Fix the welcome email functionality in the provided server.js code where:
+```javascript
+// Fix this section to properly replace template variables
+emailTemplate = emailTemplate
+  .replace(/{{username}}/g, username)
+  .replace(/{{password}}/g, password)
+  // etc...
+```
+
+### Database Schema
+Work with existing user management system that tracks:
+- User email, username, password
+- Plan type (standard/premium/cancelled)  
+- Stripe integration
+- Jellyfin user IDs
+- Expiration dates and status
+
+## File Structure Requirements
+```
+/
+├── src/
+│   ├── components/
+│   │   ├── Auth/
+│   │   ├── Player/
+│   │   ├── Library/
+│   │   ├── Search/
+│   │   ├── Settings/
+│   │   └── TV/ (Android TV & Roku interfaces)
+│   ├── pages/
+│   ├── utils/
+│   └── styles/
+├── server/
+│   ├── routes/
+│   └── middleware/
+├── public/
+│   └── alfredflix.mp4 (intro video)
+└── README.md
+```
+
+## Priority Implementation Order
+1. **Authentication & Basic UI** - Login, responsive layout
+2. **Library Integration** - Jellyfin API connection, library display  
+3. **Quality Merging Logic** - Combine standard/UHD versions
+4. **Media Player** - Video.js integration with intro playback
+5. **Search & Jellyseerr** - Hybrid search with request functionality
+6. **Continue Watching/Next Up** - Progress tracking
+7. **TV Interfaces** - Android TV and Roku dashboards
+8. **Billing Integration** - In-app subscription management
+9. **Trakt Integration** - Account linking and sync
+10. **Settings & Polish** - User preferences, final optimizations
+
+## Environment Variables Needed
+```
+JELLYFIN_URL=https://apex.alfredflix.stream
+JELLYFIN_API_KEY=[from existing system]
+JELLYSEERR_URL=https://requests.alfredflix.stream  
+JELLYSEERR_API_KEY=MTc1MTU4ODIyNjU2MjNkNGM4YjhkLTUxMDEtNGQxYi1iMDA3LWVhODM1MDc0N2VlMA==
+TMDB_API_KEY=88c86aad48e750e724b36296cc69383f
+STRIPE_SECRET_KEY=[from existing system]
+TRAKT_CLIENT_ID=[to be obtained]
+TRAKT_CLIENT_SECRET=[to be obtained]
+```
+
+## Success Criteria
+- Seamless login and library browsing experience
+- Perfect quality selection and merging
+- Smooth media playback with stats
+- Effective search with request functionality  
+- Responsive across all device types
+- Integrated billing without external redirects
+- TV interfaces that work with remotes
+- Trakt synchronization functioning
+- All existing billing infrastructure preserved and enhanced
+
+Build this as a complete, production-ready application that provides a premium streaming experience rivaling commercial services while maintaining full control over the media server infrastructure.

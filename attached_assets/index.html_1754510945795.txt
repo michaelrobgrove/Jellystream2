@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-zinc-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlfredFlix Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#f59e0b',
+                        secondary: '#3b82f6',
+                        danger: '#ef4444',
+                        dark: '#18181b',
+                        darker: '#0a0a0a',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="h-full font-sans text-zinc-100 flex flex-col">
+    <!-- Auth Modal -->
+    <div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in">
+        <div class="w-full max-w-md rounded-2xl bg-zinc-800/80 border border-zinc-700/50 shadow-xl overflow-hidden">
+            <div class="p-8 text-center">
+                <div class="flex justify-center mb-6">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-yellow-300 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-lock text-2xl text-darker"></i>
+                    </div>
+                </div>
+                <h2 class="text-2xl font-bold mb-2 bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+                    Admin Portal
+                </h2>
+                
+                <div class="space-y-4">
+                    <div class="relative">
+                        <input 
+                            id="adminToken"
+                            type="password" 
+                            class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent placeholder-zinc-500"
+                            placeholder="Access Token"
+                            autocomplete="off"
+                        />
+                        <div id="authError" class="hidden mt-2 text-sm text-danger flex items-center justify-center gap-2">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span>Invalid authentication token</span>
+                        </div>
+                    </div>
+                    
+                    <button 
+                        onclick="authenticate()"
+                        class="w-full px-6 py-3 bg-gradient-to-r from-primary to-yellow-500 text-darker font-semibold rounded-lg hover:shadow-lg hover:shadow-yellow-500/20 transition-all"
+                    >
+                        <i class="fas fa-sign-in-alt mr-2"></i> Authenticate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div class="flex flex-col h-full" id="dashboardContainer" style="display: none;">
+        <!-- Header -->
+        <header class="bg-darker border-b border-zinc-800/50">
+            <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-yellow-300 flex items-center justify-center">
+                        <i class="fas fa-crown text-darker"></i>
+                    </div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+                        AlfredFlix
+                    </h1>
+                </div>
+                <button 
+                    id="logoutBtn"
+                    onclick="logout()"
+                    class="px-4 py-2 bg-gradient-to-r from-zinc-700 to-zinc-600 hover:from-zinc-600 hover:to-zinc-500 rounded-lg text-sm font-medium transition-all"
+                >
+                    <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 container mx-auto px-4 py-8 overflow-auto">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-gradient-to-br from-zinc-800/50 to-zinc-800/20 border border-zinc-700/30 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-zinc-400 mb-1">Total Users</p>
+                            <h3 class="text-2xl font-bold" id="totalUsers">0</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center">
+                            <i class="fas fa-users text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-zinc-800/50 to-zinc-800/20 border border-zinc-700/30 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-zinc-400 mb-1">Active Users</p>
+                            <h3 class="text-2xl font-bold" id="activeUsers">0</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-green-400 flex items-center justify-center">
+                            <i class="fas fa-user-check text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-zinc-800/50 to-zinc-800/20 border border-zinc-700/30 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-zinc-400 mb-1">Expired Users</p>
+                            <h3 class="text-2xl font-bold" id="expiredUsers">0</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-red-600 to-red-400 flex items-center justify-center">
+                            <i class="fas fa-user-clock text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-zinc-800/50 to-zinc-800/20 border border-zinc-700/30 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-zinc-400 mb-1">Monthly Revenue</p>
+                            <h3 class="text-2xl font-bold" id="monthlyRevenue">$0.00</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow-600 to-yellow-400 flex items-center justify-center">
+                            <i class="fas fa-dollar-sign text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Table -->
+            <div class="bg-gradient-to-br from-zinc-800/50 to-zinc-800/20 border border-zinc-700/30 rounded-xl shadow-lg overflow-hidden">
+                <div class="px-6 py-4 border-b border-zinc-700/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <i class="fas fa-users-cog text-primary"></i>
+                        <span>User Management</span>
+                    </h2>
+                    <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                        <select 
+                            id="statusFilter"
+                            class="bg-zinc-800/50 border border-zinc-700/50 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        >
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="expired">Expired</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                        <select 
+                            id="planFilter"
+                            class="bg-zinc-800/50 border border-zinc-700/50 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        >
+                            <option value="">All Plans</option>
+                            <option value="standard">Standard</option>
+                            <option value="premium">Premium</option>
+                        </select>
+                        <div class="relative">
+                            <input 
+                                id="searchInput"
+                                type="text" 
+                                class="bg-zinc-800/50 border border-zinc-700/50 text-sm rounded-lg pl-3 pr-8 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                placeholder="Search..."
+                            >
+                            <i class="fas fa-search absolute right-3 top-2.5 text-zinc-500 text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <div id="usersContainer">
+                        <div class="p-8 text-center text-zinc-500">
+                            <i class="fas fa-spinner fa-spin text-2xl text-primary mb-2"></i>
+                            <p>Loading users...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-darker border-t border-zinc-800/50 py-4">
+            <div class="container mx-auto px-4 text-center text-sm text-zinc-500">
+                <p>AlfredFlix Admin Dashboard &copy; 2025</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        let users = [];
+        let filteredUsers = [];
+        let authToken = null;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Admin dashboard initialized');
+            
+            const savedToken = localStorage.getItem('adminToken');
+            if (savedToken) {
+                console.log('Found saved token, attempting authentication');
+                authToken = savedToken;
+                hideAuthModal();
+                showDashboard();
+                loadUsers();
+            }
+            
+            document.getElementById('adminToken').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    authenticate();
+                }
+            });
+
+            // Add event listeners for filters
+            document.getElementById('statusFilter').addEventListener('change', filterUsers);
+            document.getElementById('planFilter').addEventListener('change', filterUsers);
+            document.getElementById('searchInput').addEventListener('input', filterUsers);
+        });
+        
+        function showAuthModal() {
+            console.log('Showing auth modal');
+            document.getElementById('authModal').style.display = 'flex';
+        }
+        
+        function hideAuthModal() {
+            console.log('Hiding auth modal');
+            document.getElementById('authModal').style.display = 'none';
+        }
+        
+        function showDashboard() {
+            console.log('Showing dashboard');
+            document.getElementById('dashboardContainer').style.display = 'flex';
+        }
+        
+        async function authenticate() {
+            console.log('Attempting authentication');
+            const token = document.getElementById('adminToken').value.trim();
+            const authError = document.getElementById('authError');
+            
+            if (!token) {
+                console.log('No token entered');
+                authError.textContent = 'Please enter admin token';
+                authError.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                console.log('Making authentication request');
+                const response = await fetch('/api/admin/users', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                console.log('Auth response status:', response.status);
+                
+                if (response.ok) {
+                    console.log('Authentication successful');
+                    authToken = token;
+                    localStorage.setItem('adminToken', token);
+                    hideAuthModal();
+                    showDashboard();
+                    authError.classList.add('hidden');
+                    loadUsers();
+                } else if (response.status === 403) {
+                    console.log('Authentication failed - invalid token');
+                    authError.textContent = 'Invalid admin token';
+                    authError.classList.remove('hidden');
+                    throw new Error('Invalid token');
+                } else {
+                    console.log('Authentication failed with status:', response.status);
+                    authError.textContent = 'Authentication error occurred';
+                    authError.classList.remove('hidden');
+                    throw new Error('Authentication failed');
+                }
+            } catch (error) {
+                console.error('Authentication error:', error);
+                authError.textContent = 'Authentication failed. Please try again.';
+                authError.classList.remove('hidden');
+            }
+        }
+        
+        function logout() {
+            console.log('Logging out');
+            authToken = null;
+            localStorage.removeItem('adminToken');
+            location.reload();
+        }
+        
+        async function loadUsers() {
+            console.log('Loading users...');
+            if (!authToken) {
+                console.log('No auth token, showing auth modal');
+                showAuthModal();
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/users', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                console.log('Users response status:', response.status);
+                
+                if (response.status === 403) {
+                    console.log('Session expired');
+                    showMessage('Session expired. Please login again.', 'error');
+                    logout();
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                users = await response.json();
+                console.log('Loaded users:', users.length);
+                filteredUsers = [...users];
+                updateStats();
+                filterUsers();
+            } catch (error) {
+                console.error('Error loading users:', error);
+                showMessage('Error loading users: ' + error.message, 'error');
+                
+                // If there's an error, show the auth modal again
+                showAuthModal();
+            }
+        }
+        
+        function updateStats() {
+            console.log('Updating stats');
+            const totalUsers = users.length;
+            const activeUsers = users.filter(u => u.status === 'active').length;
+            const expiredUsers = users.filter(u => u.status === 'expired').length;
+            const monthlyRevenue = users
+                .filter(u => u.status === 'active')
+                .reduce((sum, u) => sum + (u.plan_type === 'premium' ? 14.99 : 9.99), 0);
+            
+            document.getElementById('totalUsers').textContent = totalUsers;
+            document.getElementById('activeUsers').textContent = activeUsers;
+            document.getElementById('expiredUsers').textContent = expiredUsers;
+            document.getElementById('monthlyRevenue').textContent = '$' + monthlyRevenue.toFixed(2);
+        }
+        
+        function filterUsers() {
+            console.log('Filtering users');
+            const statusFilter = document.getElementById('statusFilter').value;
+            const planFilter = document.getElementById('planFilter').value;
+            const searchInput = document.getElementById('searchInput').value.toLowerCase();
+            
+            filteredUsers = users.filter(user => {
+                const matchesStatus = !statusFilter || user.status === statusFilter;
+                const matchesPlan = !planFilter || user.plan_type === planFilter;
+                const matchesSearch = !searchInput || 
+                    (user.email && user.email.toLowerCase().includes(searchInput)) || 
+                    (user.username && user.username.toLowerCase().includes(searchInput));
+                
+                return matchesStatus && matchesPlan && matchesSearch;
+            });
+            
+            renderUsersTable();
+        }
+        
+        function renderUsersTable() {
+            console.log('Rendering user table');
+            const container = document.getElementById('usersContainer');
+            
+            if (filteredUsers.length === 0) {
+                container.innerHTML = `
+                    <div class="p-8 text-center text-zinc-500">
+                        <i class="fas fa-search text-2xl mb-2"></i>
+                        <p>No users found matching the current filters</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const table = `
+                <table class="w-full">
+                    <thead class="text-left text-sm text-zinc-400 border-b border-zinc-700/30">
+                        <tr>
+                            <th class="px-6 py-3">Email</th>
+                            <th class="px-6 py-3">Username</th>
+                            <th class="px-6 py-3">Plan</th>
+                            <th class="px-6 py-3">Status</th>
+                            <th class="px-6 py-3">Expires</th>
+                            <th class="px-6 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-700/30">
+                        ${filteredUsers.map(user => `
+                            <tr class="hover:bg-zinc-800/50" id="user-row-${user.id}">
+                                <td class="px-6 py-4 whitespace-nowrap">${user.email || 'N/A'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${user.username || 'N/A'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs rounded-full ${
+                                        user.plan_type === 'premium' 
+                                            ? 'bg-purple-500/10 text-purple-400' 
+                                            : 'bg-blue-500/10 text-blue-400'
+                                    }">
+                                        ${user.plan_type ? user.plan_type.charAt(0).toUpperCase() + user.plan_type.slice(1) : 'N/A'}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs rounded-full ${
+                                        user.status === 'active' 
+                                            ? 'bg-green-500/10 text-green-400' 
+                                            : user.status === 'expired' 
+                                                ? 'bg-red-500/10 text-red-400' 
+                                                : 'bg-yellow-500/10 text-yellow-400'
+                                    }">
+                                        ${user.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : 'N/A'}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">${user.expires_at ? new Date(user.expires_at).toLocaleDateString() : 'N/A'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex gap-2 flex-wrap">
+                                        ${user.status === 'active' ? `
+                                            <button 
+                                                onclick="cancelUser('${user.id}')"
+                                                class="px-3 py-1.5 bg-gradient-to-r from-yellow-600 to-yellow-500 text-xs font-medium rounded-md hover:shadow-md transition-all"
+                                            >
+                                                <i class="fas fa-ban mr-1"></i> Cancel
+                                            </button>
+                                            <div class="relative">
+                                                <button 
+                                                    onclick="togglePlanDropdown('${user.id}')"
+                                                    class="px-3 py-1.5 bg-gradient-to-r from-zinc-700 to-zinc-600 text-xs font-medium rounded-md hover:shadow-md transition-all"
+                                                >
+                                                    <i class="fas fa-exchange-alt mr-1"></i> Change Plan
+                                                </button>
+                                                <div 
+                                                    id="plan-dropdown-${user.id}"
+                                                    class="absolute right-0 z-20 mt-1 w-32 bg-zinc-800 rounded-md shadow-lg hidden border border-zinc-700/50"
+                                                >
+                                                    <div class="py-1">
+                                                        <a onclick="changePlan('${user.id}', 'standard')" class="block px-4 py-2 text-sm hover:bg-zinc-700 cursor-pointer">Standard</a>
+                                                        <a onclick="changePlan('${user.id}', 'premium')" class="block px-4 py-2 text-sm hover:bg-zinc-700 cursor-pointer">Premium</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ` : `
+                                            <button 
+                                                onclick="reactivateUser('${user.id}')"
+                                                class="px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-500 text-xs font-medium rounded-md hover:shadow-md transition-all"
+                                            >
+                                                <i class="fas fa-redo mr-1"></i> Reactivate
+                                            </button>
+                                        `}
+                                        <button 
+                                            onclick="deleteUser('${user.id}')"
+                                            class="px-3 py-1.5 bg-gradient-to-r from-red-600 to-red-500 text-xs font-medium rounded-md hover:shadow-md transition-all"
+                                        >
+                                            <i class="fas fa-trash-alt mr-1"></i> Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            container.innerHTML = table;
+        }
+
+        function togglePlanDropdown(userId) {
+            const dropdown = document.getElementById(`plan-dropdown-${userId}`);
+            dropdown.classList.toggle('hidden');
+            
+            // Close when clicking elsewhere
+            const clickHandler = function(e) {
+                if (!dropdown.contains(e.target) && !e.target.closest(`[onclick="togglePlanDropdown('${userId}')"]`)) {
+                    dropdown.classList.add('hidden');
+                    document.removeEventListener('click', clickHandler);
+                }
+            };
+            
+            document.addEventListener('click', clickHandler);
+        }
+
+        async function cancelUser(userId) {
+            console.log(`Cancelling user ${userId}`);
+            try {
+                const response = await fetch(`/api/admin/users/${userId}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.status === 403) {
+                    showMessage('Session expired. Please login again.', 'error');
+                    logout();
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('Cancel result:', result);
+                
+                if (result.success) {
+                    showMessage('User cancelled successfully', 'success');
+                    loadUsers(); // Refresh the user list
+                } else {
+                    showMessage(`Failed to cancel user: ${result.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error cancelling user:', error);
+                showMessage('Error cancelling user: ' + error.message, 'error');
+            }
+        }
+
+        async function reactivateUser(userId) {
+            console.log(`Reactivating user ${userId}`);
+            try {
+                const planType = prompt('Enter plan type (standard/premium):');
+                if (!planType || !['standard', 'premium'].includes(planType)) {
+                    showMessage('Invalid plan type entered', 'error');
+                    return;
+                }
+
+                const response = await fetch(`/api/admin/users/${userId}/reactivate`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ planType })
+                });
+
+                if (response.status === 403) {
+                    showMessage('Session expired. Please login again.', 'error');
+                    logout();
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('Reactivate result:', result);
+                
+                if (result.success) {
+                    showMessage(`User reactivated as ${planType} plan`, 'success');
+                    loadUsers(); // Refresh the user list
+                } else {
+                    showMessage(`Failed to reactivate user: ${result.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error reactivating user:', error);
+                showMessage('Error reactivating user: ' + error.message, 'error');
+            }
+        }
+
+        async function changePlan(userId, newPlan) {
+            console.log(`Changing plan for user ${userId} to ${newPlan}`);
+            try {
+                const response = await fetch(`/api/admin/users/${userId}/change-plan`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ newPlan })
+                });
+
+                console.log('Change plan response status:', response.status);
+                
+                if (response.status === 403) {
+                    showMessage('Session expired. Please login again.', 'error');
+                    logout();
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('Change plan result:', result);
+                
+                if (result.success) {
+                    showMessage(`Plan changed to ${newPlan}`, 'success');
+                    // Update the UI
+                    const userRow = document.getElementById(`user-row-${userId}`);
+                    if (userRow) {
+                        const planBadge = userRow.querySelector('td:nth-child(3) span');
+                        planBadge.className = `px-2 py-1 text-xs rounded-full ${
+                            newPlan === 'premium' 
+                                ? 'bg-purple-500/10 text-purple-400' 
+                                : 'bg-blue-500/10 text-blue-400'
+                        }`;
+                        planBadge.textContent = newPlan.charAt(0).toUpperCase() + newPlan.slice(1);
+                    }
+                } else {
+                    showMessage(`Failed to change plan: ${result.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error changing plan:', error);
+                showMessage('Error changing plan: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteUser(userId) {
+            console.log(`Deleting user ${userId}`);
+            if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/admin/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.status === 403) {
+                    showMessage('Session expired. Please login again.', 'error');
+                    logout();
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('Delete result:', result);
+                
+                if (result.success) {
+                    showMessage('User deleted successfully', 'success');
+                    loadUsers(); // Refresh the user list
+                } else {
+                    showMessage(`Failed to delete user: ${result.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showMessage('Error deleting user: ' + error.message, 'error');
+            }
+        }
+
+        function showMessage(message, type) {
+            console.log(`Showing message: ${message} (${type})`);
+            const colors = {
+                error: 'bg-red-500/10 text-red-400 border-red-500/30',
+                success: 'bg-green-500/10 text-green-400 border-green-500/30',
+                warning: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
+            };
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `fixed top-4 right-4 px-4 py-3 rounded-lg border ${colors[type]} flex items-center gap-2 shadow-lg animate-fade-in`;
+            messageDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            
+            document.body.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                setTimeout(() => messageDiv.remove(), 300);
+            }, 5000);
+        }
+
+        // Set interval to refresh data every 30 seconds
+        setInterval(() => {
+            if (authToken) {
+                console.log('Auto-refreshing user data');
+                loadUsers();
+            }
+        }, 30000);
+    </script>
+</body>
+</html>
