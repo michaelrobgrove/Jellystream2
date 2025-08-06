@@ -1,0 +1,257 @@
+import axios from 'axios';
+
+const JELLYFIN_URL = import.meta.env.VITE_JELLYFIN_URL || 'https://apex.alfredflix.stream';
+
+export interface JellyfinUser {
+  Id: string;
+  Name: string;
+  Policy: {
+    MaxParentalRating?: number;
+    IsAdministrator: boolean;
+    IsDisabled: boolean;
+    EnabledFolders: string[];
+    MaxActiveSessions: number;
+  };
+}
+
+export interface JellyfinItem {
+  Id: string;
+  Name: string;
+  Type: string;
+  Overview?: string;
+  ProductionYear?: number;
+  CommunityRating?: number;
+  RunTimeTicks?: number;
+  ImageTags?: {
+    Primary?: string;
+    Backdrop?: string;
+  };
+  BackdropImageTags?: string[];
+  Genres?: string[];
+  Studios?: Array<{ Name: string }>;
+  People?: Array<{ Name: string; Type: string; Role?: string }>;
+  SeriesName?: string;
+  ParentIndexNumber?: number;
+  IndexNumber?: number;
+}
+
+export interface JellyfinAuthResult {
+  AccessToken: string;
+  User: JellyfinUser;
+}
+
+class JellyfinAPI {
+  private accessToken: string | null = null;
+  private userId: string | null = null;
+
+  async authenticate(username: string, password: string): Promise<JellyfinAuthResult> {
+    try {
+      const response = await axios.post(`${JELLYFIN_URL}/Users/AuthenticateByName`, {
+        Username: username,
+        Pw: password
+      });
+
+      this.accessToken = response.data.AccessToken;
+      this.userId = response.data.User.Id;
+
+      return response.data;
+    } catch (error) {
+      console.error('Jellyfin authentication failed:', error);
+      throw new Error('Invalid username or password');
+    }
+  }
+
+  async getLibraries(): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/UserViews`, {
+        headers: { 'X-Emby-Token': this.accessToken },
+        params: { UserId: this.userId }
+      });
+
+      return response.data.Items || [];
+    } catch (error) {
+      console.error('Failed to fetch libraries:', error);
+      throw error;
+    }
+  }
+
+  async getLatestItems(parentId?: string, limit = 20): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/Latest`, {
+        headers: { 'X-Emby-Token': this.accessToken },
+        params: {
+          Limit: limit,
+          ParentId: parentId,
+          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear,Status,EndDate'
+        }
+      });
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Failed to fetch latest items:', error);
+      return [];
+    }
+  }
+
+  async getContinueWatching(): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/Resume`, {
+        headers: { 'X-Emby-Token': this.accessToken },
+        params: {
+          Limit: 20,
+          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear'
+        }
+      });
+
+      return response.data.Items || [];
+    } catch (error) {
+      console.error('Failed to fetch continue watching:', error);
+      return [];
+    }
+  }
+
+  async getNextUp(): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Shows/NextUp`, {
+        headers: { 'X-Emby-Token': this.accessToken },
+        params: {
+          UserId: this.userId,
+          Limit: 20,
+          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear'
+        }
+      });
+
+      return response.data.Items || [];
+    } catch (error) {
+      console.error('Failed to fetch next up:', error);
+      return [];
+    }
+  }
+
+  async searchItems(query: string): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items`, {
+        headers: { 'X-Emby-Token': this.accessToken },
+        params: {
+          searchTerm: query,
+          IncludeItemTypes: 'Movie,Series',
+          Recursive: true,
+          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear',
+          Limit: 50
+        }
+      });
+
+      return response.data.Items || [];
+    } catch (error) {
+      console.error('Failed to search items:', error);
+      return [];
+    }
+  }
+
+  async getItem(itemId: string): Promise<JellyfinItem | null> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/${itemId}`, {
+        headers: { 'X-Emby-Token': this.accessToken }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch item:', error);
+      return null;
+    }
+  }
+
+  getImageUrl(itemId: string, imageType: 'Primary' | 'Backdrop' = 'Primary', tag?: string): string {
+    const baseUrl = `${JELLYFIN_URL}/Items/${itemId}/Images/${imageType}`;
+    const params = new URLSearchParams();
+    
+    if (tag) params.set('tag', tag);
+    params.set('quality', '90');
+    
+    if (imageType === 'Primary') {
+      params.set('maxHeight', '450');
+      params.set('maxWidth', '300');
+    } else {
+      params.set('maxHeight', '720');
+      params.set('maxWidth', '1280');
+    }
+
+    return `${baseUrl}?${params.toString()}`;
+  }
+
+  getStreamUrl(itemId: string, quality: 'auto' | '1080p' | '4k' = 'auto'): string {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    const params = new URLSearchParams({
+      UserId: this.userId || '',
+      DeviceId: 'alfredflix-web',
+      api_key: this.accessToken
+    });
+
+    if (quality === '1080p') {
+      params.set('maxHeight', '1080');
+    } else if (quality === '4k') {
+      params.set('maxHeight', '2160');
+    }
+
+    return `${JELLYFIN_URL}/Videos/${itemId}/stream.mp4?${params.toString()}`;
+  }
+
+  async reportPlaybackStart(itemId: string): Promise<void> {
+    if (!this.accessToken || !this.userId) return;
+
+    try {
+      await axios.post(`${JELLYFIN_URL}/Sessions/Playing`, {
+        ItemId: itemId,
+        UserId: this.userId,
+        PositionTicks: 0,
+        CanSeek: true,
+        IsMuted: false,
+        IsPaused: false,
+        VolumeLevel: 100,
+        PlayMethod: 'DirectStream'
+      }, {
+        headers: { 'X-Emby-Token': this.accessToken }
+      });
+    } catch (error) {
+      console.error('Failed to report playback start:', error);
+    }
+  }
+
+  async reportPlaybackProgress(itemId: string, positionTicks: number, isPaused: boolean): Promise<void> {
+    if (!this.accessToken || !this.userId) return;
+
+    try {
+      await axios.post(`${JELLYFIN_URL}/Sessions/Playing/Progress`, {
+        ItemId: itemId,
+        UserId: this.userId,
+        PositionTicks: positionTicks,
+        IsPaused: isPaused,
+        PlayMethod: 'DirectStream'
+      }, {
+        headers: { 'X-Emby-Token': this.accessToken }
+      });
+    } catch (error) {
+      console.error('Failed to report playback progress:', error);
+    }
+  }
+
+  logout(): void {
+    this.accessToken = null;
+    this.userId = null;
+  }
+}
+
+export const jellyfinApi = new JellyfinAPI();
