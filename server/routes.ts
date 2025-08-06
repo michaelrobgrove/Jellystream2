@@ -278,6 +278,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get available permission options for user configuration
+  app.get("/api/admin/permission-options", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      // Get libraries for folder selection
+      const librariesResponse = await axios.get(`${JELLYFIN_URL}/Library/VirtualFolders`, {
+        headers: { 'X-Emby-Token': API_KEY }
+      });
+
+      const libraries = librariesResponse.data.map((lib: any) => ({
+        id: lib.ItemId,
+        name: lib.Name,
+        collectionType: lib.CollectionType
+      }));
+
+      // Define configurable permission options
+      const permissionOptions = {
+        access: {
+          enableRemoteAccess: { name: "Remote Access", description: "Allow access from outside network" },
+          enableLiveTvAccess: { name: "Live TV Access", description: "Access to live TV features" },
+          enableLiveTvManagement: { name: "Live TV Management", description: "Manage live TV settings" }
+        },
+        playback: {
+          enableMediaPlayback: { name: "Media Playback", description: "Basic media playback" },
+          enableAudioPlaybackTranscoding: { name: "Audio Transcoding", description: "Transcode audio files" },
+          enableVideoPlaybackTranscoding: { name: "Video Transcoding", description: "Transcode video files" },
+          enablePlaybackRemuxing: { name: "Playback Remuxing", description: "Remux media files" }
+        },
+        content: {
+          enableContentDeletion: { name: "Content Deletion", description: "Delete media files" },
+          enableContentDownloading: { name: "Content Downloading", description: "Download content for offline use" },
+          enableSyncTranscoding: { name: "Sync Transcoding", description: "Transcode for sync" }
+        },
+        streaming: {
+          remoteClientBitrateLimit: { 
+            name: "Max Streaming Bitrate", 
+            description: "Maximum streaming bitrate (Mbps)",
+            type: "number",
+            options: [
+              { value: 1000000, label: "1 Mbps" },
+              { value: 2000000, label: "2 Mbps" },
+              { value: 4000000, label: "4 Mbps" },
+              { value: 8000000, label: "8 Mbps" },
+              { value: 15000000, label: "15 Mbps" },
+              { value: 25000000, label: "25 Mbps" },
+              { value: 50000000, label: "50 Mbps" },
+              { value: 0, label: "No Limit" }
+            ]
+          },
+          maxActiveSessions: {
+            name: "Max Concurrent Sessions",
+            description: "Maximum simultaneous streams",
+            type: "number",
+            options: [
+              { value: 1, label: "1 session" },
+              { value: 2, label: "2 sessions" },
+              { value: 3, label: "3 sessions" },
+              { value: 5, label: "5 sessions" },
+              { value: 0, label: "Unlimited" }
+            ]
+          }
+        },
+        libraries: {
+          enabledFolders: {
+            name: "Library Access",
+            description: "Which libraries user can access",
+            type: "multiselect",
+            options: libraries
+          },
+          enableAllFolders: { name: "Access All Libraries", description: "Grant access to all current and future libraries" }
+        }
+      };
+
+      res.json(permissionOptions);
+    } catch (error) {
+      console.error('Failed to get permission options:', error);
+      res.status(500).json({ error: "Failed to get permission options" });
+    }
+  });
+
   // Create new Jellyfin user
   app.post("/api/admin/create-jellyfin-user", async (req, res) => {
     if (!req.isAuthenticated() || !req.user?.isAdmin) {

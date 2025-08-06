@@ -46,7 +46,23 @@ export class MemStorage implements IStorage {
     };
     this.users.set(adminId, adminUser);
 
-    // Remove test users - they will be created properly via admin panel
+    // Create srvadmin user in AlfredFlix system
+    const srvadminId = 'srvadmin-user-id';
+    const srvadminUser: User = {
+      id: srvadminId,
+      username: 'srvadmin',
+      password: 'admin123', // You can change this
+      email: 'srvadmin@alfredflix.com',
+      planType: 'premium',
+      status: 'active',
+      isAdmin: true,
+      createdAt: new Date(),
+      jellyfinUserId: '2bfcb58e3dce4812ad2a96657a53d597', // Real Jellyfin ID from API response
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      expiresAt: null
+    };
+    this.users.set(srvadminId, srvadminUser);
   }
 
   async getUser(id: string): Promise<User | undefined> {
