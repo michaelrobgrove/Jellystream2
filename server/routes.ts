@@ -138,6 +138,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/admin/create-user", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { username, email, password, planType, isAdmin } = req.body;
+      
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const user = await storage.createUser({
+        username,
+        email,
+        password,
+        planType,
+        isAdmin: isAdmin || false,
+        status: 'active'
+      });
+
+      res.json(user);
+    } catch (error) {
+      console.error('Create user error:', error);
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { id } = req.params;
+      
+      // Prevent deleting yourself
+      if (id === req.user.id) {
+        return res.status(400).json({ error: "Cannot delete your own account" });
+      }
+      
+      await storage.deleteUser(id);
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+      console.error('Delete user error:', error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
   app.get("/api/admin/jellyfin-users", async (req, res) => {
     if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ error: "Admin access required" });

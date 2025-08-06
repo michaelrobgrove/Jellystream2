@@ -14,6 +14,7 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<User>): Promise<User>;
   updateStripeCustomerId(id: string, customerId: string): Promise<User>;
   updateUserStripeInfo(id: string, info: { customerId: string; subscriptionId: string }): Promise<User>;
+  deleteUser(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -134,8 +135,8 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id,
       planType: insertUser.planType || 'standard',
-      status: 'active',
-      isAdmin: false,
+      status: insertUser.status || 'active',
+      isAdmin: insertUser.isAdmin || false,
       createdAt: new Date(),
       jellyfinUserId: null,
       stripeCustomerId: null,
@@ -189,6 +190,12 @@ export class MemStorage implements IStorage {
       stripeCustomerId: info.customerId, 
       stripeSubscriptionId: info.subscriptionId 
     });
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    const exists = this.users.has(id);
+    if (!exists) throw new Error('User not found');
+    this.users.delete(id);
   }
 }
 

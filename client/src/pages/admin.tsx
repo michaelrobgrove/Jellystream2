@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Users, Crown, DollarSign, UserPlus, RefreshCw } from 'lucide-react';
+import { Users, Crown, DollarSign, UserPlus, RefreshCw, Trash2, Edit3, Plus } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -51,6 +51,14 @@ export default function AdminPanel() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
+  const [newUser, setNewUser] = useState({
+    username: '',
+    email: '',
+    password: '',
+    planType: 'standard' as 'standard' | 'premium',
+    isAdmin: false,
+  });
   
   // Admin verification
   if (!user?.isAdmin) {
@@ -74,9 +82,28 @@ export default function AdminPanel() {
   });
 
   // Fetch Jellyfin users for import
-  const { data: jellyfinUsers } = useQuery({
+  const { data: jellyfinUsers, isLoading: jellyfinUsersLoading, error: jellyfinUsersError } = useQuery({
     queryKey: ['admin', 'jellyfin-users'],
-    queryFn: () => apiRequest('GET', '/api/admin/jellyfin-users').then(r => r.json()),
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/admin/jellyfin-users', {
+          method: 'GET',
+          credentials: 'include', // Important: include cookies for session auth
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return response.json();
+      } catch (error) {
+        console.error('Failed to fetch Jellyfin users:', error);
+        throw error;
+      }
+    },
     enabled: importDialogOpen,
   });
 
@@ -107,6 +134,45 @@ export default function AdminPanel() {
     }
   });
 
+  // Create new user mutation
+  const createUserMutation = useMutation({
+    mutationFn: (userData: typeof newUser) =>
+      apiRequest('POST', '/api/admin/create-user', userData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      toast({ title: 'User created successfully' });
+      setCreateUserDialogOpen(false);
+      setNewUser({
+        username: '',
+        email: '',
+        password: '',
+        planType: 'standard',
+        isAdmin: false,
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Failed to create user', 
+        description: error.message || 'Unknown error',
+        variant: 'destructive' 
+      });
+    }
+  });
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: string) =>
+      apiRequest('DELETE', `/api/admin/users/${userId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      toast({ title: 'User deleted successfully' });
+      setUserDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: 'Failed to delete user', variant: 'destructive' });
+    }
+  });
+
   // Stats calculations
   const totalUsers = users?.length || 0;
   const activeUsers = users?.filter((u: AdminUser) => u.status === 'active').length || 0;
@@ -120,6 +186,25 @@ export default function AdminPanel() {
 
   const handleJellyfinImport = (jellyfinUser: JellyfinUserImport, planType: string) => {
     importUserMutation.mutate({ ...jellyfinUser, planType });
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUser.username || !newUser.email || !newUser.password) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+    createUserMutation.mutate(newUser);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      deleteUserMutation.mutate(userId);
+    }
   };
 
   return (
@@ -173,16 +258,118 @@ export default function AdminPanel() {
               <UserPlus className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent className="space-y-2">
+              <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="w-full text-xs bg-amber-500 hover:bg-amber-600 text-black">
+                    <Plus className="w-3 h-3 mr-1" />
+                    Create New User
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md luxury-card">
+                  <DialogHeader>
+                    <DialogTitle>Create New User</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateUser} className="space-y-4">
+                    <div>
+                      <Label htmlFor="username" className="text-zinc-300">Username</Label>
+                      <Input
+                        id="username"
+                        value={newUser.username}
+                        onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                        className="bg-zinc-700 border-zinc-600"
+                        placeholder="Enter username"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email" className="text-zinc-300">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                        className="bg-zinc-700 border-zinc-600"
+                        placeholder="Enter email"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="password" className="text-zinc-300">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                        className="bg-zinc-700 border-zinc-600"
+                        placeholder="Enter password"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="plan" className="text-zinc-300">Plan Type</Label>
+                      <Select value={newUser.planType} onValueChange={(value: 'standard' | 'premium') => setNewUser({...newUser, planType: value})}>
+                        <SelectTrigger className="bg-zinc-700 border-zinc-600">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="standard">Standard ($9.99/month)</SelectItem>
+                          <SelectItem value="premium">Premium ($14.99/month)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="isAdmin"
+                        checked={newUser.isAdmin}
+                        onChange={(e) => setNewUser({...newUser, isAdmin: e.target.checked})}
+                        className="rounded"
+                      />
+                      <Label htmlFor="isAdmin" className="text-zinc-300">Admin privileges</Label>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        type="submit" 
+                        disabled={createUserMutation.isPending}
+                        className="flex-1 bg-amber-500 hover:bg-amber-600 text-black"
+                      >
+                        {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline"
+                        onClick={() => setCreateUserDialogOpen(false)}
+                        className="border-zinc-600"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+              
               <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="w-full text-xs">Import Jellyfin Users</Button>
+                  <Button size="sm" variant="outline" className="w-full text-xs border-zinc-600">Import Jellyfin Users</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md luxury-card">
                   <DialogHeader>
                     <DialogTitle>Import Jellyfin Users</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
-                    {jellyfinUsers?.map((jfUser: JellyfinUserImport) => (
+                    {jellyfinUsersLoading && (
+                      <div className="text-center py-8">
+                        <div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p className="text-zinc-400">Loading Jellyfin users...</p>
+                      </div>
+                    )}
+                    {jellyfinUsersError && (
+                      <div className="text-center py-8 text-red-400">
+                        <p>Failed to load Jellyfin users</p>
+                        <p className="text-sm text-zinc-500 mt-2">{jellyfinUsersError.message}</p>
+                      </div>
+                    )}
+                    {!jellyfinUsersLoading && !jellyfinUsersError && jellyfinUsers?.map((jfUser: JellyfinUserImport) => (
                       <div key={jfUser.id} className="flex items-center justify-between p-4 border border-zinc-700 rounded-lg bg-zinc-800/50">
                         <div className="flex-1">
                           <div className="flex items-center space-x-2">
@@ -217,7 +404,7 @@ export default function AdminPanel() {
                         </div>
                       </div>
                     ))}
-                    {jellyfinUsers?.length === 0 && (
+                    {!jellyfinUsersLoading && !jellyfinUsersError && jellyfinUsers?.length === 0 && (
                       <div className="text-center py-8 text-zinc-400">
                         <p>No Jellyfin users found</p>
                       </div>
@@ -267,13 +454,17 @@ export default function AdminPanel() {
                       {u.isAdmin ? <Badge className="bg-amber-500">Admin</Badge> : '-'}
                     </TableCell>
                     <TableCell>
-                      <Dialog open={userDialogOpen && selectedUser?.id === u.id} onOpenChange={(open) => {
-                        setUserDialogOpen(open);
-                        if (open) setSelectedUser(u);
-                      }}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">Edit</Button>
-                        </DialogTrigger>
+                      <div className="flex space-x-2">
+                        <Dialog open={userDialogOpen && selectedUser?.id === u.id} onOpenChange={(open) => {
+                          setUserDialogOpen(open);
+                          if (open) setSelectedUser(u);
+                        }}>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Edit3 className="w-3 h-3 mr-1" />
+                              Edit
+                            </Button>
+                          </DialogTrigger>
                         <DialogContent className="sm:max-w-md luxury-card">
                           <DialogHeader>
                             <DialogTitle>Edit User: {selectedUser?.username}</DialogTitle>
@@ -322,7 +513,18 @@ export default function AdminPanel() {
                             </div>
                           </div>
                         </DialogContent>
-                      </Dialog>
+                        </Dialog>
+                        {user?.id !== u.id && ( // Don't allow deleting yourself
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteUser(u.id)}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Delete
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
