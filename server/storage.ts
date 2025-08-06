@@ -98,6 +98,24 @@ export class MemStorage implements IStorage {
       expiresAt: null
     };
     this.users.set(premdemoId, premdemoUser);
+
+    // Create master admin user
+    const masteradmId = 'masteradm-user-id';
+    const masteradmUser: User = {
+      id: masteradmId,
+      username: 'masteradm',
+      password: 'MasterPlan6172',
+      email: 'masteradm@alfredflix.com',
+      planType: 'premium',
+      status: 'active',
+      isAdmin: true,
+      createdAt: new Date(),
+      jellyfinUserId: '500716705ea1402e81d5a5c946aefe67', // Real Jellyfin ID
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      expiresAt: null
+    };
+    this.users.set(masteradmId, masteradmUser);
   }
 
   async getUser(id: string): Promise<User | undefined> {
