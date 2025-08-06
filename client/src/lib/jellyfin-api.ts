@@ -44,6 +44,11 @@ class JellyfinAPI {
   private accessToken: string | null = null;
   private userId: string | null = null;
 
+  setCredentials(accessToken: string, userId: string) {
+    this.accessToken = accessToken;
+    this.userId = userId;
+  }
+
   async authenticate(username: string, password: string): Promise<JellyfinAuthResult> {
     try {
       const response = await axios.post(`${JELLYFIN_URL}/Users/AuthenticateByName`, {
@@ -78,7 +83,10 @@ class JellyfinAPI {
 
     try {
       const response = await axios.get(`${JELLYFIN_URL}/UserViews`, {
-        headers: { 'X-Emby-Token': this.accessToken },
+        headers: { 
+          'X-Emby-Token': this.accessToken,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        },
         params: { UserId: this.userId }
       });
 
@@ -89,12 +97,108 @@ class JellyfinAPI {
     }
   }
 
+  async getContinueWatching(): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/Resume`, {
+        headers: { 
+          'X-Emby-Token': this.accessToken,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        },
+        params: {
+          Limit: 12,
+          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear,Status,EndDate',
+          MediaTypes: 'Video'
+        }
+      });
+
+      return response.data.Items || [];
+    } catch (error) {
+      console.error('Failed to fetch continue watching:', error);
+      return [];
+    }
+  }
+
+  async getNextUp(): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Shows/NextUp`, {
+        headers: { 
+          'X-Emby-Token': this.accessToken,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        },
+        params: {
+          UserId: this.userId,
+          Limit: 12,
+          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear,Status,EndDate'
+        }
+      });
+
+      return response.data.Items || [];
+    } catch (error) {
+      console.error('Failed to fetch next up:', error);
+      return [];
+    }
+  }
+
+  async searchItems(query: string): Promise<JellyfinItem[]> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items`, {
+        headers: { 
+          'X-Emby-Token': this.accessToken,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        },
+        params: {
+          SearchTerm: query,
+          IncludeItemTypes: 'Movie,Series,Episode',
+          Limit: 50,
+          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear,Status,EndDate'
+        }
+      });
+
+      return response.data.Items || [];
+    } catch (error) {
+      console.error('Failed to search items:', error);
+      return [];
+    }
+  }
+
+  async getItem(itemId: string): Promise<JellyfinItem> {
+    if (!this.accessToken) throw new Error('Not authenticated');
+
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/${itemId}`, {
+        headers: { 
+          'X-Emby-Token': this.accessToken,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch item:', error);
+      throw error;
+    }
+  }
+
+  logout() {
+    this.accessToken = null;
+    this.userId = null;
+  }
+
   async getLatestItems(parentId?: string, limit = 20): Promise<JellyfinItem[]> {
     if (!this.accessToken) throw new Error('Not authenticated');
 
     try {
       const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/Latest`, {
-        headers: { 'X-Emby-Token': this.accessToken },
+        headers: { 
+          'X-Emby-Token': this.accessToken,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        },
         params: {
           Limit: limit,
           ParentId: parentId,

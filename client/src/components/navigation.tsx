@@ -76,9 +76,13 @@ export function Navigation({ onAuthModal }: NavigationProps) {
                       <User className="w-4 h-4" />
                       <span>{user.Name}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="flex items-center space-x-2" data-testid="menu-settings">
+                    <DropdownMenuItem 
+                      className="flex items-center space-x-2 cursor-pointer" 
+                      onClick={() => window.location.href = '/dashboard'}
+                      data-testid="menu-settings"
+                    >
                       <Settings className="w-4 h-4" />
-                      <span>Settings</span>
+                      <span>Library</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       className="flex items-center space-x-2 text-red-400" 

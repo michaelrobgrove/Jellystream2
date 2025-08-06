@@ -27,7 +27,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (storedUser && storedToken) {
       try {
         const userData = JSON.parse(storedUser);
-        setUser({ ...userData, accessToken: storedToken });
+        const authUser = { ...userData, accessToken: storedToken };
+        setUser(authUser);
+        
+        // Set the API token for Jellyfin requests
+        jellyfinApi.setCredentials(storedToken, userData.Id);
       } catch (error) {
         console.error('Failed to restore user session:', error);
         localStorage.removeItem('alfredflix_user');
