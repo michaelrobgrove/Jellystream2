@@ -75,35 +75,17 @@ export default function AdminPanel() {
     );
   }
 
-  // Fetch users
+  // Fetch users 
   const { data: users, isLoading } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: () => apiRequest('GET', '/api/admin/users').then(r => r.json()),
+    enabled: !!user?.isAdmin,
   });
 
   // Fetch Jellyfin users for import
   const { data: jellyfinUsers, isLoading: jellyfinUsersLoading, error: jellyfinUsersError } = useQuery({
     queryKey: ['admin', 'jellyfin-users'],
-    queryFn: async () => {
-      try {
-        const response = await fetch('/api/admin/jellyfin-users', {
-          method: 'GET',
-          credentials: 'include', // Important: include cookies for session auth
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        return response.json();
-      } catch (error) {
-        console.error('Failed to fetch Jellyfin users:', error);
-        throw error;
-      }
-    },
+    queryFn: () => apiRequest('GET', '/api/admin/jellyfin-users').then(r => r.json()),
     enabled: importDialogOpen,
   });
 
@@ -116,8 +98,8 @@ export default function AdminPanel() {
       toast({ title: 'User updated successfully' });
       setUserDialogOpen(false);
     },
-    onError: () => {
-      toast({ title: 'Failed to update user', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ title: 'Failed to update user', description: error.message, variant: 'destructive' });
     }
   });
 
@@ -168,8 +150,8 @@ export default function AdminPanel() {
       toast({ title: 'User deleted successfully' });
       setUserDialogOpen(false);
     },
-    onError: () => {
-      toast({ title: 'Failed to delete user', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ title: 'Failed to delete user', description: error.message, variant: 'destructive' });
     }
   });
 
