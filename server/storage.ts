@@ -63,6 +63,41 @@ export class MemStorage implements IStorage {
       expiresAt: null
     };
     this.users.set(srvadminId, srvadminUser);
+
+    // Create demo users in AlfredFlix system
+    const stddemoId = 'stddemo-user-id';
+    const stddemoUser: User = {
+      id: stddemoId,
+      username: 'stddemo',
+      password: '12345',
+      email: 'stddemo@alfredflix.com',
+      planType: 'standard',
+      status: 'active',
+      isAdmin: false,
+      createdAt: new Date(),
+      jellyfinUserId: 'c435ec8aa9e34d3995864085d73230c4',
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      expiresAt: null
+    };
+    this.users.set(stddemoId, stddemoUser);
+
+    const premdemoId = 'premdemo-user-id';
+    const premdemoUser: User = {
+      id: premdemoId,
+      username: 'premdemo',
+      password: '12345',
+      email: 'premdemo@alfredflix.com',
+      planType: 'premium',
+      status: 'active',
+      isAdmin: false,
+      createdAt: new Date(),
+      jellyfinUserId: 'b017ae7d38824abd95d71d183a03b0fc',
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      expiresAt: null
+    };
+    this.users.set(premdemoId, premdemoUser);
   }
 
   async getUser(id: string): Promise<User | undefined> {

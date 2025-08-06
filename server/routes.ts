@@ -204,47 +204,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // New route to manage Jellyfin user permissions and library access
-  app.post("/api/admin/manage-jellyfin-access", async (req, res) => {
+  // Configure user permissions based on plan type
+  app.patch("/api/admin/jellyfin-user/:userId/permissions", async (req, res) => {
     if (!req.isAuthenticated() || !req.user?.isAdmin) {
       return res.status(403).json({ error: "Admin access required" });
     }
     
     try {
-      const { userId, libraries, maxBitrate } = req.body;
+      const { userId } = req.params;
+      const { planType } = req.body;
+      
       const JELLYFIN_URL = 'https://watch.alfredflix.stream';
       const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
       
-      // Get current user policy
+      // Get current user data to preserve some settings
       const userResponse = await axios.get(`${JELLYFIN_URL}/Users/${userId}`, {
-        headers: { 
-          'X-Emby-Token': API_KEY,
-          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
-        }
+        headers: { 'X-Emby-Token': API_KEY }
       });
-
-      const user = userResponse.data;
       
-      // Update user policy with library access and bitrate limits
-      const updatedPolicy = {
-        ...user.Policy,
-        EnabledFolders: libraries,
-        RemoteClientBitrateLimit: maxBitrate * 1000000, // Convert to bits per second
-        EnableAllFolders: libraries.length === 0 // If no specific libraries, enable all
+      const currentUser = userResponse.data;
+      
+      // Define permission sets based on plan type
+      const standardPermissions = {
+        IsAdministrator: false,
+        IsHidden: true,
+        IsDisabled: false,
+        EnableRemoteAccess: true,
+        EnableLiveTvAccess: false,
+        EnableLiveTvManagement: false,
+        EnableMediaPlayback: true,
+        EnableAudioPlaybackTranscoding: true,
+        EnableVideoPlaybackTranscoding: false,
+        EnablePlaybackRemuxing: false,
+        EnableContentDeletion: false,
+        EnableContentDownloading: true,
+        EnableSyncTranscoding: true,
+        RemoteClientBitrateLimit: 50000000, // 50 Mbps
+        MaxActiveSessions: 2,
+        LoginAttemptsBeforeLockout: 3,
+        EnabledFolders: [
+          "f137a2dd21bbc1b99aa5c0f6bf02a805", // Movies
+          "a656b907eb3a73532e40e44b968d0225"  // Shows
+        ],
+        EnableAllFolders: false,
+        SyncPlayAccess: "JoinGroups",
+        AuthenticationProviderId: currentUser.Policy.AuthenticationProviderId,
+        PasswordResetProviderId: currentUser.Policy.PasswordResetProviderId
       };
 
-      await axios.post(`${JELLYFIN_URL}/Users/${userId}/Policy`, updatedPolicy, {
+      const premiumPermissions = {
+        IsAdministrator: false,
+        IsHidden: true,
+        IsDisabled: false,
+        EnableRemoteAccess: true,
+        EnableLiveTvAccess: false,
+        EnableLiveTvManagement: false,
+        EnableMediaPlayback: true,
+        EnableAudioPlaybackTranscoding: true,
+        EnableVideoPlaybackTranscoding: false,
+        EnablePlaybackRemuxing: false,
+        EnableContentDeletion: false,
+        EnableContentDownloading: true,
+        EnableSyncTranscoding: true,
+        RemoteClientBitrateLimit: 100000000, // 100 Mbps
+        MaxActiveSessions: 4,
+        LoginAttemptsBeforeLockout: 3,
+        EnabledFolders: [
+          "f137a2dd21bbc1b99aa5c0f6bf02a805", // Movies
+          "a656b907eb3a73532e40e44b968d0225", // Shows
+          "171db634ae2ae313edf438e829876c69", // UHD Movies
+          "3b37f5f09c7109a66c0e5ba425175e64"  // UHD Shows
+        ],
+        EnableAllFolders: false,
+        SyncPlayAccess: "JoinGroups",
+        AuthenticationProviderId: currentUser.Policy.AuthenticationProviderId,
+        PasswordResetProviderId: currentUser.Policy.PasswordResetProviderId
+      };
+
+      const permissions = planType === 'premium' ? premiumPermissions : standardPermissions;
+      
+      // Update user policy
+      await axios.post(`${JELLYFIN_URL}/Users/${userId}/Policy`, permissions, {
         headers: { 
           'X-Emby-Token': API_KEY,
-          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"',
           'Content-Type': 'application/json'
         }
       });
 
-      res.json({ success: true, message: "User access updated successfully" });
+      res.json({ success: true, message: `User permissions updated for ${planType} plan` });
     } catch (error) {
-      console.error('Failed to update user access:', error);
-      res.status(500).json({ error: "Failed to update user access" });
+      console.error('Failed to update user permissions:', error);
+      res.status(500).json({ error: "Failed to update user permissions" });
     }
   });
 
