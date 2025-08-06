@@ -52,6 +52,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin user management routes
+  app.get("/api/admin/users", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const user = await storage.updateUser(id, updates);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  app.get("/api/admin/jellyfin-users", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      // Mock Jellyfin users - in production, this would fetch from Jellyfin API
+      const jellyfinUsers = [
+        { id: "1", name: "demo_user", hasPassword: true, lastLoginDate: "2024-01-15T10:30:00Z" },
+        { id: "2", name: "test_user", hasPassword: true, lastLoginDate: null }
+      ];
+      res.json(jellyfinUsers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch Jellyfin users" });
+    }
+  });
+
+  app.post("/api/admin/import-user", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { id, name, planType } = req.body;
+      const user = await storage.createUser({
+        username: name,
+        email: `${name}@jellyfin.import`,
+        password: 'imported_user',
+        planType: planType
+      });
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to import user" });
+    }
+  });
+
   // Jellyfin proxy endpoints (to handle CORS and authentication)
   app.get("/api/jellyfin/*", (req, res) => {
     // In a real implementation, you might proxy requests to Jellyfin

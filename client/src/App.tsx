@@ -11,6 +11,9 @@ import SearchPage from "@/pages/search";
 import PlayerPage from "@/pages/player";
 import Subscribe from "@/pages/subscribe";
 import NotFound from "@/pages/not-found";
+import { lazy } from 'react';
+
+const AdminPanel = lazy(() => import("@/pages/admin"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -46,6 +49,11 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/subscribe" component={Subscribe} />
+      <Route path="/admin">
+        <ProtectedRoute>
+          <AdminPanel />
+        </ProtectedRoute>
+      </Route>
       <Route path="/player/:itemId/:quality?">
         {(params) => (
           <ProtectedRoute>

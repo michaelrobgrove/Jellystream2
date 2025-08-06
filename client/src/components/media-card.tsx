@@ -21,9 +21,9 @@ export function MediaCard({
   onClick 
 }: MediaCardProps) {
   const sizeClasses = {
-    small: 'w-48 h-72',
-    medium: 'w-72 h-40',
-    large: 'w-80 h-44'
+    small: 'w-32 h-48',
+    medium: 'w-48 h-72',
+    large: 'w-64 h-96'
   };
 
   const posterUrl = item.ImageTags?.Primary 

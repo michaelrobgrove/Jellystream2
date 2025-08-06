@@ -84,6 +84,16 @@ export function Navigation({ onAuthModal }: NavigationProps) {
                       <Settings className="w-4 h-4" />
                       <span>Library</span>
                     </DropdownMenuItem>
+                    {user.isAdmin && (
+                      <DropdownMenuItem 
+                        className="flex items-center space-x-2 cursor-pointer" 
+                        onClick={() => window.location.href = '/admin'}
+                        data-testid="menu-admin"
+                      >
+                        <Crown className="w-4 h-4" />
+                        <span>Admin Panel</span>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem 
                       className="flex items-center space-x-2 text-red-400" 
                       onClick={logout}

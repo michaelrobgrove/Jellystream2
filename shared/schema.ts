@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   status: text("status").notNull().default("active"),
+  isAdmin: boolean("is_admin").notNull().default(false),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });

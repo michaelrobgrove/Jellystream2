@@ -185,11 +185,6 @@ class JellyfinAPI {
     }
   }
 
-  logout() {
-    this.accessToken = null;
-    this.userId = null;
-  }
-
   async getLatestItems(parentId?: string, limit = 20): Promise<JellyfinItem[]> {
     if (!this.accessToken) throw new Error('Not authenticated');
 
@@ -213,80 +208,9 @@ class JellyfinAPI {
     }
   }
 
-  async getContinueWatching(): Promise<JellyfinItem[]> {
-    if (!this.accessToken) throw new Error('Not authenticated');
-
-    try {
-      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/Resume`, {
-        headers: { 'X-Emby-Token': this.accessToken },
-        params: {
-          Limit: 20,
-          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear'
-        }
-      });
-
-      return response.data.Items || [];
-    } catch (error) {
-      console.error('Failed to fetch continue watching:', error);
-      return [];
-    }
-  }
-
-  async getNextUp(): Promise<JellyfinItem[]> {
-    if (!this.accessToken) throw new Error('Not authenticated');
-
-    try {
-      const response = await axios.get(`${JELLYFIN_URL}/Shows/NextUp`, {
-        headers: { 'X-Emby-Token': this.accessToken },
-        params: {
-          UserId: this.userId,
-          Limit: 20,
-          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear'
-        }
-      });
-
-      return response.data.Items || [];
-    } catch (error) {
-      console.error('Failed to fetch next up:', error);
-      return [];
-    }
-  }
-
-  async searchItems(query: string): Promise<JellyfinItem[]> {
-    if (!this.accessToken) throw new Error('Not authenticated');
-
-    try {
-      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items`, {
-        headers: { 'X-Emby-Token': this.accessToken },
-        params: {
-          searchTerm: query,
-          IncludeItemTypes: 'Movie,Series',
-          Recursive: true,
-          Fields: 'BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear',
-          Limit: 50
-        }
-      });
-
-      return response.data.Items || [];
-    } catch (error) {
-      console.error('Failed to search items:', error);
-      return [];
-    }
-  }
-
-  async getItem(itemId: string): Promise<JellyfinItem | null> {
-    if (!this.accessToken) throw new Error('Not authenticated');
-
-    try {
-      const response = await axios.get(`${JELLYFIN_URL}/Users/${this.userId}/Items/${itemId}`, {
-        headers: { 'X-Emby-Token': this.accessToken }
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('Failed to fetch item:', error);
-      return null;
-    }
+  logout() {
+    this.accessToken = null;
+    this.userId = null;
   }
 
   getImageUrl(itemId: string, imageType: 'Primary' | 'Backdrop' = 'Primary', tag?: string): string {
