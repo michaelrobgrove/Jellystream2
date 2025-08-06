@@ -148,6 +148,17 @@ export function Navigation({ onAuthModal }: NavigationProps) {
                         <p className="text-sm text-zinc-400 capitalize">{user.planType}</p>
                       </div>
                     </div>
+                    {user.isAdmin && (
+                      <Button 
+                        onClick={() => { window.location.href = '/admin'; setMobileOpen(false); }}
+                        variant="ghost" 
+                        className="w-full justify-start text-amber-400 mb-2"
+                        data-testid="mobile-admin"
+                      >
+                        <Crown className="w-4 h-4 mr-2" />
+                        Admin Panel
+                      </Button>
+                    )}
                     <Button 
                       onClick={() => { logout(); setMobileOpen(false); }}
                       variant="ghost" 
