@@ -46,23 +46,7 @@ export class MemStorage implements IStorage {
     };
     this.users.set(adminId, adminUser);
 
-    // Also create a test standard user
-    const testUserId = 'test-user-id';
-    const testUser: User = {
-      id: testUserId,
-      username: 'testuser',
-      password: 'test123',
-      email: 'test@alfredflix.com',
-      planType: 'standard',
-      status: 'active',
-      isAdmin: false,
-      createdAt: new Date(),
-      jellyfinUserId: null,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
-      expiresAt: null
-    };
-    this.users.set(testUserId, testUser);
+    // Remove test users - they will be created properly via admin panel
   }
 
   async getUser(id: string): Promise<User | undefined> {

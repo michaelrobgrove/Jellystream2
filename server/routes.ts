@@ -5,6 +5,8 @@ import { insertContactMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import axios from "axios";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
@@ -13,7 +15,61 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-07-30.basil",
 });
 
+// Configure passport
+passport.use(new LocalStrategy(async (username, password, done) => {
+  try {
+    const user = await storage.getUserByUsername(username);
+    if (!user) {
+      return done(null, false, { message: 'Invalid username or password' });
+    }
+    
+    // Simple password check (in production, use proper hashing)
+    if (user.password !== password) {
+      return done(null, false, { message: 'Invalid username or password' });
+    }
+    
+    return done(null, user);
+  } catch (error) {
+    return done(error);
+  }
+}));
+
+passport.serializeUser((user: any, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id: string, done) => {
+  try {
+    const user = await storage.getUser(id);
+    done(null, user);
+  } catch (error) {
+    done(error);
+  }
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication routes
+  app.post("/api/login", passport.authenticate('local'), (req, res) => {
+    res.json({ user: req.user, message: 'Login successful' });
+  });
+
+  app.post("/api/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Logout failed' });
+      }
+      res.json({ message: 'Logout successful' });
+    });
+  });
+
+  app.get("/api/me", (req, res) => {
+    if (req.isAuthenticated()) {
+      res.json({ user: req.user });
+    } else {
+      res.status(401).json({ error: 'Not authenticated' });
+    }
+  });
+
   // Contact form submission
   app.post("/api/contact", async (req, res) => {
     try {
@@ -219,6 +275,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Failed to fetch libraries:', error);
       res.status(500).json({ error: "Failed to fetch libraries" });
+    }
+  });
+
+  // Create new Jellyfin user
+  app.post("/api/admin/create-jellyfin-user", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { username, password, planType } = req.body;
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      // Create user in Jellyfin with required fields
+      const createResponse = await axios.post(`${JELLYFIN_URL}/Users/New`, {
+        Name: username,
+        Password: password,
+        PasswordResetProviderId: 'Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider',
+        AuthenticationProviderId: 'Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider'
+      }, {
+        headers: { 
+          'X-Emby-Token': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const newUserId = createResponse.data.Id;
+      
+      // Set user policy based on plan type
+      const isStandard = planType === 'standard';
+      const policy = {
+        IsAdministrator: false,
+        IsHidden: false,
+        IsDisabled: false,
+        EnableRemoteAccess: true,
+        EnableLiveTvAccess: true,
+        EnableLiveTvManagement: false,
+        EnableMediaPlayback: true,
+        EnableAudioPlaybackTranscoding: true,
+        EnableVideoPlaybackTranscoding: true,
+        EnablePlaybackRemuxing: true,
+        EnableContentDeletion: false,
+        EnableContentDownloading: true,
+        EnableSyncTranscoding: true,
+        EnableMediaConversion: false,
+        EnableAllDevices: true,
+        EnableAllChannels: true,
+        EnableAllFolders: !isStandard, // Standard users get restricted folders
+        RemoteClientBitrateLimit: isStandard ? 15000000 : 50000000, // 15Mbps for standard, 50Mbps for premium
+        EnablePublicSharing: false,
+        InvalidLoginAttemptCount: 0,
+        LoginAttemptsBeforeLockout: 3,
+        MaxActiveSessions: isStandard ? 1 : 3
+      };
+
+      await axios.post(`${JELLYFIN_URL}/Users/${newUserId}/Policy`, policy, {
+        headers: { 
+          'X-Emby-Token': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Also create in AlfredFlix database
+      const alfredUser = await storage.createUser({
+        username,
+        password,
+        email: `${username}@alfredflix.com`,
+        planType
+      });
+
+      await storage.updateUser(alfredUser.id, {
+        jellyfinUserId: newUserId
+      });
+
+      res.json({ success: true, jellyfinId: newUserId, alfredUserId: alfredUser.id });
+    } catch (error: any) {
+      console.error('Failed to create Jellyfin user:', error.response?.data || error.message);
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+
+  // Make Jellyfin user admin
+  app.post("/api/admin/make-jellyfin-admin", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { userId } = req.body;
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      // Get current user
+      const userResponse = await axios.get(`${JELLYFIN_URL}/Users/${userId}`, {
+        headers: { 'X-Emby-Token': API_KEY }
+      });
+
+      const user = userResponse.data;
+      
+      // Update policy to make admin
+      const adminPolicy = {
+        ...user.Policy,
+        IsAdministrator: true,
+        EnableRemoteAccess: true,
+        EnableLiveTvManagement: true,
+        EnableContentDeletion: true,
+        EnableAllFolders: true,
+        RemoteClientBitrateLimit: 0, // No limit for admins
+        MaxActiveSessions: 0 // No limit
+      };
+
+      await axios.post(`${JELLYFIN_URL}/Users/${userId}/Policy`, adminPolicy, {
+        headers: { 
+          'X-Emby-Token': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      res.json({ success: true, message: "User made admin successfully" });
+    } catch (error: any) {
+      console.error('Failed to make user admin:', error.response?.data || error.message);
+      res.status(500).json({ error: "Failed to update user permissions" });
+    }
+  });
+
+  // Delete Jellyfin user
+  app.delete("/api/admin/jellyfin-user/:userId", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { userId } = req.params;
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      await axios.delete(`${JELLYFIN_URL}/Users/${userId}`, {
+        headers: { 'X-Emby-Token': API_KEY }
+      });
+
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error: any) {
+      console.error('Failed to delete user:', error.response?.data || error.message);
+      res.status(500).json({ error: "Failed to delete user" });
     }
   });
 
