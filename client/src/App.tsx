@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import SearchPage from "@/pages/search";
 import PlayerPage from "@/pages/player";
 import Subscribe from "@/pages/subscribe";
+import Account from "@/pages/account";
 import NotFound from "@/pages/not-found";
 import { lazy } from 'react';
 
@@ -49,6 +50,11 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/subscribe" component={Subscribe} />
+      <Route path="/account">
+        <ProtectedRoute>
+          <Account />
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin">
         <ProtectedRoute>
           <AdminPanel />

@@ -4,6 +4,7 @@ import { jellyfinApi, type JellyfinUser } from '@/lib/jellyfin-api';
 interface AuthUser extends JellyfinUser {
   planType: 'standard' | 'premium';
   accessToken: string;
+  isAdmin?: boolean;
 }
 
 interface AuthContextType {
@@ -53,7 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const authUser: AuthUser = {
         ...authResult.User,
         planType,
-        accessToken: authResult.AccessToken
+        accessToken: authResult.AccessToken,
+        isAdmin: authResult.User.Policy?.IsAdministrator || false
       };
 
       setUser(authUser);

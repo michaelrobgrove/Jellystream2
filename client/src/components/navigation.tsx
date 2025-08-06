@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Crown, Menu, X, User, Settings, LogOut } from 'lucide-react';
+import { Crown, Menu, X, User, LogOut, Library, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -79,10 +79,18 @@ export function Navigation({ onAuthModal }: NavigationProps) {
                     <DropdownMenuItem 
                       className="flex items-center space-x-2 cursor-pointer" 
                       onClick={() => window.location.href = '/dashboard'}
-                      data-testid="menu-settings"
+                      data-testid="menu-library"
                     >
-                      <Settings className="w-4 h-4" />
+                      <Library className="w-4 h-4" />
                       <span>Library</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center space-x-2 cursor-pointer" 
+                      onClick={() => window.location.href = '/account'}
+                      data-testid="menu-account"
+                    >
+                      <UserCog className="w-4 h-4" />
+                      <span>Account</span>
                     </DropdownMenuItem>
                     {user.isAdmin && (
                       <DropdownMenuItem 
@@ -148,6 +156,24 @@ export function Navigation({ onAuthModal }: NavigationProps) {
                         <p className="text-sm text-zinc-400 capitalize">{user.planType}</p>
                       </div>
                     </div>
+                    <Button 
+                      onClick={() => { window.location.href = '/dashboard'; setMobileOpen(false); }}
+                      variant="ghost" 
+                      className="w-full justify-start text-zinc-300 mb-2"
+                      data-testid="mobile-library"
+                    >
+                      <Library className="w-4 h-4 mr-2" />
+                      Library
+                    </Button>
+                    <Button 
+                      onClick={() => { window.location.href = '/account'; setMobileOpen(false); }}
+                      variant="ghost" 
+                      className="w-full justify-start text-zinc-300 mb-2"
+                      data-testid="mobile-account"
+                    >
+                      <UserCog className="w-4 h-4 mr-2" />
+                      Account
+                    </Button>
                     {user.isAdmin && (
                       <Button 
                         onClick={() => { window.location.href = '/admin'; setMobileOpen(false); }}
