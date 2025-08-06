@@ -50,6 +50,7 @@ export default function AdminPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [editingPrice, setEditingPrice] = useState<string>('');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
@@ -162,7 +163,15 @@ export default function AdminPanel() {
   const totalUsers = users?.length || 0;
   const activeUsers = users?.filter((u: AdminUser) => u.status === 'active').length || 0;
   const premiumUsers = users?.filter((u: AdminUser) => u.planType === 'premium').length || 0;
-  const totalRevenue = premiumUsers * 14.99 + (activeUsers - premiumUsers) * 9.99;
+  
+  // Calculate revenue using actual individual pricing instead of plan defaults
+  const totalRevenue = users?.reduce((sum, user) => {
+    if (user.status === 'active') {
+      const monthlyPrice = parseFloat(user.monthlyPrice || '0');
+      return sum + monthlyPrice;
+    }
+    return sum;
+  }, 0) || 0;
 
   const handleUserUpdate = (updates: Partial<AdminUser>) => {
     if (!selectedUser) return;
@@ -353,9 +362,10 @@ export default function AdminPanel() {
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline" className="w-full text-xs border-zinc-600">Import Jellyfin Users</Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md luxury-card">
+                <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto luxury-card">
                   <DialogHeader>
                     <DialogTitle>Import Jellyfin Users</DialogTitle>
+                    <p className="text-sm text-zinc-400">Only showing users not already imported to AlfredFlix</p>
                   </DialogHeader>
                   <div className="space-y-4">
                     {jellyfinUsersLoading && (
@@ -370,7 +380,14 @@ export default function AdminPanel() {
                         <p className="text-sm text-zinc-500 mt-2">{jellyfinUsersError.message}</p>
                       </div>
                     )}
-                    {!jellyfinUsersLoading && !jellyfinUsersError && jellyfinUsers?.map((jfUser: JellyfinUserImport) => (
+                    {!jellyfinUsersLoading && !jellyfinUsersError && jellyfinUsers?.filter((jfUser: JellyfinUserImport) => {
+                      // Filter out users that already exist in AlfredFlix
+                      const existsInAlfredFlix = users?.some((user: AdminUser) => 
+                        user.username.toLowerCase() === jfUser.name.toLowerCase() ||
+                        user.jellyfinUserId === jfUser.id
+                      );
+                      return !existsInAlfredFlix;
+                    }).map((jfUser: JellyfinUserImport) => (
                       <div key={jfUser.id} className="flex items-center justify-between p-4 border border-zinc-700 rounded-lg bg-zinc-800/50">
                         <div className="flex-1">
                           <div className="flex items-center space-x-2">
@@ -405,9 +422,15 @@ export default function AdminPanel() {
                         </div>
                       </div>
                     ))}
-                    {!jellyfinUsersLoading && !jellyfinUsersError && jellyfinUsers?.length === 0 && (
+                    {!jellyfinUsersLoading && !jellyfinUsersError && jellyfinUsers?.filter((jfUser: JellyfinUserImport) => {
+                      const existsInAlfredFlix = users?.some((user: AdminUser) => 
+                        user.username.toLowerCase() === jfUser.name.toLowerCase() ||
+                        user.jellyfinUserId === jfUser.id
+                      );
+                      return !existsInAlfredFlix;
+                    }).length === 0 && (
                       <div className="text-center py-8 text-zinc-400">
-                        <p>No Jellyfin users found</p>
+                        <p>All Jellyfin users have already been imported to AlfredFlix</p>
                       </div>
                     )}
                   </div>
@@ -496,8 +519,20 @@ export default function AdminPanel() {
                                 id="monthlyPrice"
                                 type="number"
                                 step="0.01"
-                                value={selectedUser?.monthlyPrice || '9.99'}
-                                onChange={(e) => handleUserUpdate({ monthlyPrice: e.target.value })}
+                                value={editingPrice || selectedUser?.monthlyPrice || '9.99'}
+                                onChange={(e) => setEditingPrice(e.target.value)}
+                                onBlur={(e) => {
+                                  handleUserUpdate({ monthlyPrice: e.target.value });
+                                  setEditingPrice('');
+                                }}
+                                onFocus={(e) => setEditingPrice(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleUserUpdate({ monthlyPrice: e.currentTarget.value });
+                                    setEditingPrice('');
+                                    e.currentTarget.blur();
+                                  }
+                                }}
                                 className="bg-zinc-700 border-zinc-600"
                                 placeholder="9.99"
                               />
