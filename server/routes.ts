@@ -136,7 +136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/create-user", async (req, res) => {
     try {
-      const { username, email, password, planType, isAdmin } = req.body;
+      const { username, email, password, planType, isAdmin, monthlyPrice } = req.body;
       
       // Check if username already exists
       const existingUser = await storage.getUserByUsername(username);
@@ -144,16 +144,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Username already exists" });
       }
 
+      // Create user in AlfredFlix system first
       const user = await storage.createUser({
         username,
         email,
         password,
         planType,
+        monthlyPrice: monthlyPrice || (planType === 'premium' ? '14.99' : '9.99'),
         isAdmin: isAdmin || false,
         status: 'active'
       });
 
-      res.json(user);
+      // Also create user in Jellyfin server
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      try {
+        const jellyfinResponse = await axios.post(`${JELLYFIN_URL}/Users/New`, {
+          Name: username,
+          Password: password
+        }, {
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Emby-Token': API_KEY,
+            'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+          }
+        });
+
+        const jellyfinUser = jellyfinResponse.data;
+        
+        // Update AlfredFlix user with Jellyfin ID
+        const updatedUser = await storage.updateUser(user.id, {
+          jellyfinUserId: jellyfinUser.Id
+        });
+
+        console.log(`Created user ${username} in both AlfredFlix and Jellyfin (ID: ${jellyfinUser.Id})`);
+        res.json(updatedUser);
+        
+      } catch (jellyfinError) {
+        console.error('Failed to create Jellyfin user:', jellyfinError);
+        // User was created in AlfredFlix but not Jellyfin - still return the user but log the issue
+        console.warn(`User ${username} created in AlfredFlix but not in Jellyfin. Manual sync required.`);
+        res.json(user);
+      }
+
     } catch (error) {
       console.error('Create user error:', error);
       res.status(500).json({ error: "Failed to create user" });

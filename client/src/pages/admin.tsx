@@ -19,6 +19,7 @@ interface AdminUser {
   username: string;
   email: string;
   planType: 'standard' | 'premium';
+  monthlyPrice?: string;
   jellyfinUserId?: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
@@ -57,6 +58,7 @@ export default function AdminPanel() {
     email: '',
     password: '',
     planType: 'standard' as 'standard' | 'premium',
+    monthlyPrice: '9.99',
     isAdmin: false,
   });
   
@@ -129,6 +131,7 @@ export default function AdminPanel() {
         email: '',
         password: '',
         planType: 'standard',
+        monthlyPrice: '9.99',
         isAdmin: false,
       });
     },
@@ -289,15 +292,31 @@ export default function AdminPanel() {
                     </div>
                     <div>
                       <Label htmlFor="plan" className="text-zinc-300">Plan Type</Label>
-                      <Select value={newUser.planType} onValueChange={(value: 'standard' | 'premium') => setNewUser({...newUser, planType: value})}>
+                      <Select value={newUser.planType} onValueChange={(value: 'standard' | 'premium') => {
+                        const defaultPrice = value === 'premium' ? '14.99' : '9.99';
+                        setNewUser({...newUser, planType: value, monthlyPrice: defaultPrice});
+                      }}>
                         <SelectTrigger className="bg-zinc-700 border-zinc-600">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="standard">Standard ($9.99/month)</SelectItem>
-                          <SelectItem value="premium">Premium ($14.99/month)</SelectItem>
+                          <SelectItem value="standard">Standard (Default: $9.99/month)</SelectItem>
+                          <SelectItem value="premium">Premium (Default: $14.99/month)</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="monthlyPrice" className="text-zinc-300">Monthly Price ($)</Label>
+                      <Input
+                        id="monthlyPrice"
+                        type="number"
+                        step="0.01"
+                        value={newUser.monthlyPrice}
+                        onChange={(e) => setNewUser({...newUser, monthlyPrice: e.target.value})}
+                        className="bg-zinc-700 border-zinc-600"
+                        placeholder="9.99"
+                      />
+                      <p className="text-xs text-zinc-500 mt-1">Set to 0.00 for free users or custom pricing</p>
                     </div>
                     <div className="flex items-center space-x-2">
                       <input
@@ -410,6 +429,7 @@ export default function AdminPanel() {
                   <TableHead className="text-zinc-300">Username</TableHead>
                   <TableHead className="text-zinc-300">Email</TableHead>
                   <TableHead className="text-zinc-300">Plan</TableHead>
+                  <TableHead className="text-zinc-300">Price/Month</TableHead>
                   <TableHead className="text-zinc-300">Status</TableHead>
                   <TableHead className="text-zinc-300">Admin</TableHead>
                   <TableHead className="text-zinc-300">Actions</TableHead>
@@ -424,6 +444,9 @@ export default function AdminPanel() {
                       <Badge variant={u.planType === 'premium' ? 'default' : 'secondary'}>
                         {u.planType}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-zinc-300">
+                      ${u.monthlyPrice || '9.99'}
                     </TableCell>
                     <TableCell>
                       <Badge 
@@ -462,10 +485,23 @@ export default function AdminPanel() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="standard">Standard ($9.99/mo)</SelectItem>
-                                  <SelectItem value="premium">Premium ($14.99/mo)</SelectItem>
+                                  <SelectItem value="standard">Standard</SelectItem>
+                                  <SelectItem value="premium">Premium</SelectItem>
                                 </SelectContent>
                               </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="monthlyPrice">Monthly Price ($)</Label>
+                              <Input
+                                id="monthlyPrice"
+                                type="number"
+                                step="0.01"
+                                value={selectedUser?.monthlyPrice || '9.99'}
+                                onChange={(e) => handleUserUpdate({ monthlyPrice: e.target.value })}
+                                className="bg-zinc-700 border-zinc-600"
+                                placeholder="9.99"
+                              />
+                              <p className="text-xs text-zinc-500 mt-1">Set to 0.00 for free users or enter custom pricing</p>
                             </div>
                             <div>
                               <Label htmlFor="status">Status</Label>
