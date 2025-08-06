@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertContactMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
+import axios from "axios";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
@@ -87,13 +88,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      // Mock Jellyfin users - in production, this would fetch from Jellyfin API
-      const jellyfinUsers = [
-        { id: "1", name: "demo_user", hasPassword: true, lastLoginDate: "2024-01-15T10:30:00Z" },
-        { id: "2", name: "test_user", hasPassword: true, lastLoginDate: null }
-      ];
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      const response = await axios.get(`${JELLYFIN_URL}/Users`, {
+        headers: { 
+          'X-Emby-Token': API_KEY,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+        }
+      });
+
+      const jellyfinUsers = response.data.map((user: any) => ({
+        id: user.Id,
+        name: user.Name,
+        hasPassword: user.HasPassword,
+        lastLoginDate: user.LastLoginDate,
+        lastActivityDate: user.LastActivityDate,
+        isAdmin: user.Policy?.IsAdministrator || false,
+        isDisabled: user.Policy?.IsDisabled || false
+      }));
+
       res.json(jellyfinUsers);
     } catch (error) {
+      console.error('Failed to fetch Jellyfin users:', error);
       res.status(500).json({ error: "Failed to fetch Jellyfin users" });
     }
   });
@@ -105,15 +122,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const { id, name, planType } = req.body;
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(name);
+      if (existingUser) {
+        return res.status(400).json({ error: "User already exists in AlfredFlix" });
+      }
+
       const user = await storage.createUser({
         username: name,
-        email: `${name}@jellyfin.import`,
-        password: 'imported_user',
+        email: `${name}@alfredflix.com`,
+        password: 'temp_password_' + Math.random().toString(36).substring(7),
         planType: planType
       });
-      res.json(user);
+
+      // Update with Jellyfin user ID
+      const updatedUser = await storage.updateUser(user.id, {
+        jellyfinUserId: id
+      });
+
+      res.json(updatedUser);
     } catch (error) {
+      console.error('Import user error:', error);
       res.status(500).json({ error: "Failed to import user" });
+    }
+  });
+
+  // New route to manage Jellyfin user permissions and library access
+  app.post("/api/admin/manage-jellyfin-access", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { userId, libraries, maxBitrate } = req.body;
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      // Get current user policy
+      const userResponse = await axios.get(`${JELLYFIN_URL}/Users/${userId}`, {
+        headers: { 
+          'X-Emby-Token': API_KEY,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+        }
+      });
+
+      const user = userResponse.data;
+      
+      // Update user policy with library access and bitrate limits
+      const updatedPolicy = {
+        ...user.Policy,
+        EnabledFolders: libraries,
+        RemoteClientBitrateLimit: maxBitrate * 1000000, // Convert to bits per second
+        EnableAllFolders: libraries.length === 0 // If no specific libraries, enable all
+      };
+
+      await axios.post(`${JELLYFIN_URL}/Users/${userId}/Policy`, updatedPolicy, {
+        headers: { 
+          'X-Emby-Token': API_KEY,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      res.json({ success: true, message: "User access updated successfully" });
+    } catch (error) {
+      console.error('Failed to update user access:', error);
+      res.status(500).json({ error: "Failed to update user access" });
+    }
+  });
+
+  // Get Jellyfin libraries for access management
+  app.get("/api/admin/jellyfin-libraries", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+      const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+      
+      const response = await axios.get(`${JELLYFIN_URL}/Library/VirtualFolders`, {
+        headers: { 
+          'X-Emby-Token': API_KEY,
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+        }
+      });
+
+      const libraries = response.data.map((library: any) => ({
+        id: library.ItemId,
+        name: library.Name,
+        collectionType: library.CollectionType
+      }));
+
+      res.json(libraries);
+    } catch (error) {
+      console.error('Failed to fetch libraries:', error);
+      res.status(500).json({ error: "Failed to fetch libraries" });
     }
   });
 

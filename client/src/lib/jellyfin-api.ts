@@ -288,6 +288,23 @@ class JellyfinAPI {
     }
   }
 
+  // Admin methods using server API key
+  async getAllJellyfinUsers(): Promise<JellyfinUser[]> {
+    try {
+      const response = await axios.get(`${JELLYFIN_URL}/Users`, {
+        headers: { 
+          'X-Emby-Token': 'f885d4ec4e7e491bb578e0980528dd08',
+          'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix", Device="Web Browser", DeviceId="alfredflix-web", Version="1.0.0"'
+        }
+      });
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Failed to fetch Jellyfin users:', error);
+      throw error;
+    }
+  }
+
   logout(): void {
     this.accessToken = null;
     this.userId = null;

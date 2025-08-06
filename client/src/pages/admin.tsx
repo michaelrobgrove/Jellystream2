@@ -33,6 +33,15 @@ interface JellyfinUserImport {
   name: string;
   hasPassword: boolean;
   lastLoginDate?: string;
+  lastActivityDate?: string;
+  isAdmin?: boolean;
+  isDisabled?: boolean;
+}
+
+interface JellyfinLibrary {
+  id: string;
+  name: string;
+  collectionType: string;
 }
 
 export default function AdminPanel() {
@@ -174,26 +183,45 @@ export default function AdminPanel() {
                   </DialogHeader>
                   <div className="space-y-4">
                     {jellyfinUsers?.map((jfUser: JellyfinUserImport) => (
-                      <div key={jfUser.id} className="flex items-center justify-between p-3 border border-zinc-700 rounded-lg">
-                        <div>
-                          <p className="font-medium text-white">{jfUser.name}</p>
-                          <p className="text-sm text-zinc-400">
-                            {jfUser.lastLoginDate ? `Last login: ${new Date(jfUser.lastLoginDate).toLocaleDateString()}` : 'Never logged in'}
-                          </p>
+                      <div key={jfUser.id} className="flex items-center justify-between p-4 border border-zinc-700 rounded-lg bg-zinc-800/50">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-white">{jfUser.name}</p>
+                            {jfUser.isAdmin && <Badge className="bg-amber-500 text-xs">JF Admin</Badge>}
+                            {jfUser.isDisabled && <Badge variant="destructive" className="text-xs">Disabled</Badge>}
+                          </div>
+                          <div className="text-sm text-zinc-400 space-y-1">
+                            {jfUser.lastLoginDate && (
+                              <p>Last login: {new Date(jfUser.lastLoginDate).toLocaleDateString()}</p>
+                            )}
+                            {jfUser.lastActivityDate && (
+                              <p>Last activity: {new Date(jfUser.lastActivityDate).toLocaleDateString()}</p>
+                            )}
+                            {!jfUser.lastLoginDate && !jfUser.lastActivityDate && (
+                              <p>Never logged in</p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Select onValueChange={(planType) => handleJellyfinImport(jfUser, planType)}>
-                            <SelectTrigger className="w-32">
-                              <SelectValue placeholder="Plan" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="standard">Standard</SelectItem>
-                              <SelectItem value="premium">Premium</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {!jfUser.isDisabled && (
+                            <Select onValueChange={(planType) => handleJellyfinImport(jfUser, planType)}>
+                              <SelectTrigger className="w-32">
+                                <SelectValue placeholder="Import as..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="standard">Standard</SelectItem>
+                                <SelectItem value="premium">Premium</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                       </div>
                     ))}
+                    {jellyfinUsers?.length === 0 && (
+                      <div className="text-center py-8 text-zinc-400">
+                        <p>No Jellyfin users found</p>
+                      </div>
+                    )}
                   </div>
                 </DialogContent>
               </Dialog>
