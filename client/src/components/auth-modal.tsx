@@ -40,6 +40,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         title: "Welcome Back",
         description: "Successfully signed in to your cinematic sanctuary.",
       });
+      
+      // Redirect to dashboard after successful login
+      window.location.href = '/dashboard';
     } catch (error) {
       setError('Invalid username or password. Please try again.');
     }

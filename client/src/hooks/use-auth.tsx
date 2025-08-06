@@ -78,6 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const determinePlanType = (user: JellyfinUser): 'standard' | 'premium' => {
+    // All admins get Premium automatically
+    if (user.Policy?.IsAdministrator) {
+      return 'premium';
+    }
+    
     // Check if user has access to UHD libraries or more than 2 streams
     const maxStreams = user.Policy?.MaxActiveSessions || 1;
     const enabledFolders = user.Policy?.EnabledFolders || [];
