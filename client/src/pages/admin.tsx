@@ -363,7 +363,7 @@ export default function AdminPanel() {
               
               <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="w-full text-xs border-zinc-600">Import Jellyfin Users</Button>
+                  <Button size="sm" variant="outline" className="w-full text-xs border-zinc-600 mb-2">Import Jellyfin Users</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto luxury-card">
                   <DialogHeader>
@@ -439,6 +439,50 @@ export default function AdminPanel() {
                   </div>
                 </DialogContent>
               </Dialog>
+              
+              <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="w-full text-xs bg-blue-600 hover:bg-blue-700 text-white">
+                    <Plus className="w-3 h-3 mr-1" />
+                    Bulk Add Days
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md luxury-card">
+                  <DialogHeader>
+                    <DialogTitle>Bulk Extend Expiration</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="bulkDays">Days to Add to All Active Users</Label>
+                      <Input
+                        id="bulkDays"
+                        type="number"
+                        placeholder="30"
+                        value={bulkDays}
+                        onChange={(e) => setBulkDays(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          const response = await apiRequest('POST', '/api/admin/bulk-extend-expiration', { days: parseInt(bulkDays) });
+                          const result = await response.json();
+                          toast({ title: 'Success', description: result.message });
+                          queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+                          setBulkDialogOpen(false);
+                          setBulkDays('');
+                        } catch (error: any) {
+                          toast({ title: 'Error', description: 'Failed to extend expiration dates', variant: 'destructive' });
+                        }
+                      }}
+                      className="w-full"
+                      disabled={!bulkDays || parseInt(bulkDays) <= 0}
+                    >
+                      Add Days to All Users
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         </div>
@@ -458,6 +502,7 @@ export default function AdminPanel() {
                   <TableHead className="text-zinc-300">Price/Month</TableHead>
                   <TableHead className="text-zinc-300">Status</TableHead>
                   <TableHead className="text-zinc-300">Admin</TableHead>
+                  <TableHead className="text-zinc-300">Expires</TableHead>
                   <TableHead className="text-zinc-300">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -483,6 +528,15 @@ export default function AdminPanel() {
                     </TableCell>
                     <TableCell>
                       {u.isAdmin ? <Badge className="bg-amber-500">Admin</Badge> : '-'}
+                    </TableCell>
+                    <TableCell className="text-zinc-300">
+                      {u.neverExpires ? (
+                        <Badge variant="secondary">Never</Badge>
+                      ) : u.expiresAt ? (
+                        new Date(u.expiresAt).toLocaleDateString()
+                      ) : (
+                        <span className="text-zinc-500">Not set</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
@@ -566,6 +620,31 @@ export default function AdminPanel() {
                                 className="w-4 h-4"
                               />
                               <Label htmlFor="isAdmin">Admin Access</Label>
+                            </div>
+                            <div>
+                              <Label htmlFor="expiresAt">Expiration Date</Label>
+                              <Input
+                                id="expiresAt"
+                                type="date"
+                                value={selectedUser?.expiresAt ? new Date(selectedUser.expiresAt).toISOString().split('T')[0] : ''}
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const expirationDate = new Date(e.target.value + 'T23:59:59');
+                                    handleUserUpdate({ expiresAt: expirationDate.toISOString() });
+                                  }
+                                }}
+                                className="bg-zinc-700 border-zinc-600"
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id="neverExpires"
+                                checked={selectedUser?.neverExpires}
+                                onChange={(e) => handleUserUpdate({ neverExpires: e.target.checked })}
+                                className="w-4 h-4"
+                              />
+                              <Label htmlFor="neverExpires">Never Expires</Label>
                             </div>
                           </div>
                         </DialogContent>
