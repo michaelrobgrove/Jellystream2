@@ -57,7 +57,7 @@ export function PricingSection() {
             </span>
           </h2>
           <p className="text-xl text-zinc-300 mb-8">
-            Start with a 7-day free trial. Cancel anytime.
+            No contracts. Cancel anytime.
           </p>
           
           {/* Special Offers */}

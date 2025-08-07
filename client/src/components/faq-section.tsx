@@ -33,7 +33,7 @@ const faqs = [
   },
   {
     question: 'Is there a free trial available?',
-    answer: 'We offer a 7-day free trial for new subscribers to experience the AlfredFlix difference. No credit card required for the trial, and you can cancel anytime during the trial period.'
+    answer: 'New customers can use referral codes to get their first month for just $1. Referral codes are available from existing members, or use FREEMONTH for a free first month (limited availability).'
   },
   {
     question: 'How do I cancel my subscription?',

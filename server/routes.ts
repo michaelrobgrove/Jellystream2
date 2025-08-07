@@ -17,7 +17,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
 }
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-07-30.basil",
+  apiVersion: "2023-10-16",
 });
 
 // Initialize Mailgun
@@ -1143,7 +1143,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(amount * 100), // Convert to cents
         currency: "usd",
-        statement_descriptor: 'ALFREDSTREAM',
       });
       res.json({ clientSecret: paymentIntent.client_secret });
     } catch (error: any) {
@@ -1199,7 +1198,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const paymentIntentData: any = {
         amount,
         currency: "usd",
-        statement_descriptor: 'ALFREDSTREAM',
         metadata,
         automatic_payment_methods: {
           enabled: true,
