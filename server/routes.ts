@@ -1143,6 +1143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(amount * 100), // Convert to cents
         currency: "usd",
+        statement_descriptor: 'ALFREDSTREAM',
       });
       res.json({ clientSecret: paymentIntent.client_secret });
     } catch (error: any) {
@@ -1154,25 +1155,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/create-subscription", async (req, res) => {
     try {
-      const { plan } = req.body;
-      const amount = plan === 'premium' ? 1499 : 999; // $14.99 or $9.99 in cents
+      const { plan, referralCode, couponCode } = req.body;
+      let amount = plan === 'premium' ? 1499 : 999; // $14.99 or $9.99 in cents
+      let appliedDiscount = '';
+      
+      // Apply referral discount (highest priority - $1 first month)
+      if (referralCode) {
+        const referralUser = await storage.getUserByUsername(referralCode);
+        if (referralUser) {
+          amount = 100; // $1.00 in cents
+          appliedDiscount = 'referral';
+        }
+      }
+      
+      // Apply coupon discount if no referral
+      if (!appliedDiscount && couponCode) {
+        const coupon = await storage.getCouponByCode(couponCode);
+        if (coupon && coupon.isActive) {
+          if (coupon.discountType === 'percent') {
+            const discountAmount = amount * (parseFloat(coupon.discountValue) / 100);
+            amount = Math.max(100, amount - discountAmount); // Minimum $1
+            appliedDiscount = 'coupon_percent';
+          } else if (coupon.discountType === 'amount') {
+            const discountAmount = parseFloat(coupon.discountValue) * 100; // Convert to cents
+            amount = Math.max(100, amount - discountAmount); // Minimum $1
+            appliedDiscount = 'coupon_amount';
+          } else if (coupon.discountType === 'free_month') {
+            amount = 0; // Free first month
+            appliedDiscount = 'coupon_free';
+          }
+        }
+      }
       
       const metadata: any = { 
         plan: plan || 'standard', 
-        type: 'subscription'
+        type: 'subscription',
+        appliedDiscount,
+        referralCode: referralCode || '',
+        couponCode: couponCode || ''
       };
       
-      // Create payment intent at base price
+      // Create payment intent with calculated amount
       const paymentIntentData: any = {
         amount,
         currency: "usd",
+        statement_descriptor: 'ALFREDSTREAM',
         metadata,
         automatic_payment_methods: {
           enabled: true,
         }
       };
-      
-
       
       const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
       
@@ -1212,13 +1244,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newUser = await storage.createUser(insertUser);
       console.log('User created successfully:', newUser.id);
       
-      // Process referral credits if applicable
+      // Process referral and coupon usage tracking
       if (referralCode) {
         const referralUser = await storage.getUserByUsername(referralCode);
         if (referralUser) {
           // Process referral through referral service
           const referralService = new ReferralService();
           await referralService.processReferral(referralUser.id, newUser.id);
+        }
+      }
+      
+      // Increment coupon usage if applicable
+      if (couponCode) {
+        const coupon = await storage.getCouponByCode(couponCode);
+        if (coupon) {
+          await storage.incrementCouponUse(coupon.id);
         }
       }
       

@@ -136,6 +136,9 @@ export class MemStorage implements IStorage {
       expiresAt: null
     };
     this.users.set(masteradmId, masteradmUser);
+    
+    // Create test coupons
+    this.createTestCoupons();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -259,6 +262,61 @@ export class MemStorage implements IStorage {
     coupon.currentUses = (currentUses + 1).toString();
     this.coupons.set(id, coupon);
     return coupon;
+  }
+
+  private async createTestCoupons() {
+    // Create demo coupons for testing
+    const testCoupons = [
+      {
+        id: randomUUID(),
+        code: 'DEMO10',
+        name: '10% Off Demo',
+        discountType: 'percent',
+        discountValue: '10',
+        isActive: true,
+        oneTimeUse: false,
+        newAccountsOnly: false,
+        maxUses: null,
+        currentUses: '0',
+        expiresAt: null,
+        createdAt: new Date(),
+        createdBy: 'masteradm-user-id'
+      },
+      {
+        id: randomUUID(),
+        code: 'SAVE5',
+        name: '$5 Off Coupon',
+        discountType: 'amount',
+        discountValue: '5.00',
+        isActive: true,
+        oneTimeUse: false,
+        newAccountsOnly: true,
+        maxUses: '100',
+        currentUses: '0',
+        expiresAt: null,
+        createdAt: new Date(),
+        createdBy: 'masteradm-user-id'
+      },
+      {
+        id: randomUUID(),
+        code: 'FREEMONTH',
+        name: 'Free First Month',
+        discountType: 'free_month',
+        discountValue: '0',
+        isActive: true,
+        oneTimeUse: true,
+        newAccountsOnly: true,
+        maxUses: '10',
+        currentUses: '0',
+        expiresAt: null,
+        createdAt: new Date(),
+        createdBy: 'masteradm-user-id'
+      }
+    ];
+    
+    testCoupons.forEach(coupon => {
+      this.coupons.set(coupon.id, coupon as Coupon);
+    });
   }
 }
 

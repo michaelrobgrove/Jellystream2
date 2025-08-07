@@ -189,6 +189,7 @@ function SignupForm({ plan }: { plan: 'standard' | 'premium' }) {
       const signupData = {
         ...formData,
         planType: plan,
+        referralCode: formData.referralCode || undefined,
         couponCode: couponCode || undefined
       };
       
@@ -453,8 +454,8 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
     const createPaymentIntent = async () => {
       try {
         const response = await apiRequest('POST', '/api/create-subscription', {
-          plan,
-          // We'll apply discounts on the server side during payment confirmation
+          plan
+          // Note: Discounts will be applied dynamically during signup process
         });
         const result = await response.json();
         setClientSecret(result.clientSecret);
