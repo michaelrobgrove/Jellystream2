@@ -1114,55 +1114,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/create-subscription", async (req, res) => {
     try {
-      const { plan, coupon, referralCode } = req.body;
-      let amount = plan === 'premium' ? 1499 : 999; // $14.99 or $9.99 in cents
+      const { plan } = req.body;
+      const amount = plan === 'premium' ? 1499 : 999; // $14.99 or $9.99 in cents
       
-      const metadata: any = { plan: plan || 'standard', type: 'subscription' };
+      const metadata: any = { 
+        plan: plan || 'standard', 
+        type: 'subscription'
+      };
       
-      // Apply referral discount (new users get $1 first month)
-      if (referralCode) {
-        // Validate referral code first
-        const referralUser = await storage.getUserByUsername(referralCode);
-        if (referralUser) {
-          amount = 100; // $1 for first month with referral
-          metadata.referral_discount = 'true';
-          metadata.referral_code = referralCode;
-        }
-      }
-      
+      // Create payment intent at base price
       const paymentIntentData: any = {
         amount,
         currency: "usd",
-        metadata
+        metadata,
+        automatic_payment_methods: {
+          enabled: true,
+        }
       };
       
-      // Apply Stripe coupon if provided
-      if (coupon) {
-        try {
-          // Validate coupon exists in Stripe
-          const couponData = await stripe.coupons.retrieve(coupon);
-          
-          // Create customer with coupon for future use
-          const customer = await stripe.customers.create({
-            metadata: { plan, coupon_code: coupon }
-          });
-          
-          paymentIntentData.customer = customer.id;
-          metadata.coupon_code = coupon;
-          
-          // Apply coupon discount
-          if (couponData.amount_off) {
-            amount = Math.max(100, amount - couponData.amount_off); // Minimum $1
-          } else if (couponData.percent_off) {
-            amount = Math.max(100, Math.round(amount * (1 - couponData.percent_off / 100)));
-          }
-          
-          paymentIntentData.amount = amount;
-        } catch (couponError) {
-          console.error('Invalid coupon:', couponError);
-          return res.status(400).json({ message: "Invalid coupon code" });
-        }
-      }
+
       
       const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
       
@@ -1188,6 +1158,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
       if (paymentIntent.status !== 'succeeded') {
         return res.status(400).json({ error: "Payment not completed" });
+      }
+      
+      // Check if user already exists (prevent duplicate accounts)
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
       }
       
       // Create user account now that payment is confirmed
