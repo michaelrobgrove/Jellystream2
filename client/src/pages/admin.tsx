@@ -27,6 +27,7 @@ interface AdminUser {
   isAdmin: boolean;
   createdAt: string;
   expiresAt?: string;
+  neverExpires?: boolean;
 }
 
 interface JellyfinUserImport {
@@ -53,6 +54,8 @@ export default function AdminPanel() {
   const [editingPrice, setEditingPrice] = useState<string>('');
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [bulkDays, setBulkDays] = useState('');
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     username: '',

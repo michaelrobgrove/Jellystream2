@@ -15,7 +15,8 @@ export const users = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   status: text("status").notNull().default("active"),
   isAdmin: boolean("is_admin").notNull().default(false),
-  expiresAt: timestamp("expires_at"),
+  expiresAt: timestamp("expires_at").default(sql`NOW() + INTERVAL '30 days'`),
+  neverExpires: boolean("never_expires").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

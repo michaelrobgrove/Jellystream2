@@ -120,7 +120,7 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
 
     const enabledFolders = planType === 'premium' ? PREMIUM_LIBRARIES : STANDARD_LIBRARIES;
 
-    // Configure permissions based on plan type
+    // Configure permissions based on plan type with STRICT folder restrictions
     const policyUpdate = {
       IsAdministrator: false,
       IsHidden: false,
@@ -138,8 +138,9 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
       RemoteClientBitrateLimit: planType === 'premium' ? 100000000 : 50000000, // 100 Mbps Premium, 50 Mbps Standard
       MaxActiveSessions: planType === 'premium' ? 4 : 2,
       LoginAttemptsBeforeLockout: 3,
-      EnabledFolders: enabledFolders,
-      EnableAllFolders: false,
+      EnabledFolders: enabledFolders, // SPECIFIC folder access
+      EnableAllFolders: false, // CRITICAL: Must be false to enforce restrictions
+      BlockedMediaFolders: planType === 'standard' ? ["171db634ae2ae313edf438e829876c69", "3b37f5f09c7109a66c0e5ba425175e64"] : [], // Block UHD for Standard
       EnablePublicSharing: false,
       SyncPlayAccess: "JoinGroups"
     };
@@ -346,7 +347,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Username already exists" });
       }
 
-      // Create user in AlfredFlix system first
+      // Create user in AlfredFlix system first with 30-day expiration
+      const expirationDate = new Date();
+      expirationDate.setDate(expirationDate.getDate() + 30);
+      
       const user = await storage.createUser({
         username,
         email,
@@ -354,7 +358,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         planType,
         monthlyPrice: monthlyPrice || (planType === 'premium' ? '14.99' : '9.99'),
         isAdmin: isAdmin || false,
-        status: 'active'
+        status: 'active',
+        expiresAt: expirationDate,
+        neverExpires: false
       });
 
       // Also create user in Jellyfin server
@@ -929,6 +935,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res
         .status(500)
         .json({ message: "Error creating subscription: " + error.message });
+    }
+  });
+
+  // Bulk extend expiration dates for all active users
+  app.post("/api/admin/bulk-extend-expiration", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { days } = req.body;
+      const daysToAdd = parseInt(days) || 0;
+      
+      if (daysToAdd <= 0) {
+        return res.status(400).json({ error: "Days must be a positive number" });
+      }
+
+      // Get all active users that are not set to never expire
+      const users = await storage.getAllUsers();
+      const activeUsers = users.filter(u => u.status === 'active' && !u.neverExpires);
+      
+      let updatedCount = 0;
+      for (const user of activeUsers) {
+        const currentExpiration = user.expiresAt || new Date();
+        const newExpiration = new Date(currentExpiration);
+        newExpiration.setDate(newExpiration.getDate() + daysToAdd);
+        
+        await storage.updateUser(user.id, { expiresAt: newExpiration });
+        updatedCount++;
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Extended expiration for ${updatedCount} active users by ${daysToAdd} days`,
+        updatedCount 
+      });
+    } catch (error) {
+      console.error('Bulk extend expiration error:', error);
+      res.status(500).json({ error: "Failed to extend expiration dates" });
+    }
+  });
+
+  // Process monthly renewals (extend by 30 days for paid users)
+  app.post("/api/admin/process-renewals", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      // This would typically be called by a payment webhook or scheduled job
+      // For now, it's a manual admin function
+      const users = await storage.getAllUsers();
+      const activeUsers = users.filter(u => u.status === 'active' && !u.neverExpires);
+      
+      let renewedCount = 0;
+      for (const user of activeUsers) {
+        // In a real system, you'd check if payment was successful
+        // For now, we'll extend all active users by 30 days
+        const currentExpiration = user.expiresAt || new Date();
+        const newExpiration = new Date(currentExpiration);
+        newExpiration.setDate(newExpiration.getDate() + 30);
+        
+        await storage.updateUser(user.id, { expiresAt: newExpiration });
+        renewedCount++;
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Renewed ${renewedCount} user subscriptions for 30 days`,
+        renewedCount 
+      });
+    } catch (error) {
+      console.error('Process renewals error:', error);
+      res.status(500).json({ error: "Failed to process renewals" });
     }
   });
 
