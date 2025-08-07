@@ -1206,6 +1206,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
       
+      console.log(`Payment intent created: ${paymentIntent.id}, amount: $${amount/100}`);
+      
       res.json({ clientSecret: paymentIntent.client_secret });
     } catch (error: any) {
       console.error('Stripe payment intent error:', error);

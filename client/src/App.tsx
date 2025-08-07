@@ -56,6 +56,12 @@ function Router() {
           return <PaymentSuccess />;
         }}
       </Route>
+      <Route path="/payment-cancelled">
+        {() => {
+          const PaymentCancelled = lazy(() => import('./pages/payment-cancelled'));
+          return <PaymentCancelled />;
+        }}
+      </Route>
       <Route path="/account">
         <ProtectedRoute>
           <Account />

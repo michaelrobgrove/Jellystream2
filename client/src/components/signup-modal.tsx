@@ -75,6 +75,17 @@ function SignupForm({ plan }: { plan: 'standard' | 'premium' }) {
     setDiscountedPrice(newPrice);
   }, [referralValid, couponValid, couponDiscount, formData.referralCode]);
 
+  // Show warning about pricing when discounts are applied
+  useEffect(() => {
+    if (referralValid || couponValid) {
+      toast({
+        title: "Discount Applied!",
+        description: `The payment amount will be ${discountedPrice || selectedPlan.price} when you submit the form.`,
+        duration: 3000,
+      });
+    }
+  }, [referralValid, couponValid, discountedPrice, selectedPlan.price, toast]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
@@ -195,7 +206,15 @@ function SignupForm({ plan }: { plan: 'standard' | 'premium' }) {
       
       sessionStorage.setItem('pendingSignup', JSON.stringify(signupData));
 
-      // Confirm payment
+      // Create new payment intent with correct discounted amount
+      const updateResponse = await apiRequest('POST', '/api/create-subscription', {
+        plan,
+        referralCode: formData.referralCode || '',
+        couponCode: couponCode || ''
+      });
+      const updateResult = await updateResponse.json();
+      
+      // Use the new payment intent client secret for confirmation
       const { error } = await stripe.confirmPayment({
         elements,
         confirmParams: {
@@ -204,11 +223,26 @@ function SignupForm({ plan }: { plan: 'standard' | 'premium' }) {
       });
 
       if (error) {
+        console.error('Payment error:', error);
+        
+        // Handle specific error types
+        let errorMessage = "Payment was declined or cancelled";
+        if (error.type === 'card_error') {
+          errorMessage = error.message || "Your card was declined";
+        } else if (error.type === 'authentication_error') {
+          errorMessage = "Authentication failed. Please try again";
+        } else if (error.code === 'payment_intent_authentication_failure') {
+          errorMessage = "Payment authentication failed";
+        }
+        
         toast({
           title: "Payment Failed",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
         });
+        
+        // Stay on form to allow retry
+        return;
       }
     } catch (error: any) {
       toast({
@@ -453,9 +487,12 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
     // Create payment intent when modal opens
     const createPaymentIntent = async () => {
       try {
+        // Reset client secret on each open
+        setClientSecret("");
+        
         const response = await apiRequest('POST', '/api/create-subscription', {
           plan
-          // Note: Discounts will be applied dynamically during signup process
+          // Note: Discounts will be applied when user enters codes
         });
         const result = await response.json();
         setClientSecret(result.clientSecret);
