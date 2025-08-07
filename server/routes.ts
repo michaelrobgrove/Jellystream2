@@ -105,55 +105,90 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
     const JELLYFIN_URL = 'https://watch.alfredflix.stream';
     const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
 
-    // Get current user policy
-    const userResponse = await axios.get(`${JELLYFIN_URL}/Users/${jellyfinUserId}`, {
-      headers: { 
-        'X-Emby-Token': API_KEY,
-        'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
-      }
-    });
+    // Define specific library IDs for Standard and Premium plans
+    const STANDARD_LIBRARIES = [
+      "f137a2dd21bbc1b99aa5c0f6bf02a805", // Movies
+      "a656b907eb3a73532e40e44b968d0225"  // Shows
+    ];
+    
+    const PREMIUM_LIBRARIES = [
+      "f137a2dd21bbc1b99aa5c0f6bf02a805", // Movies
+      "a656b907eb3a73532e40e44b968d0225", // Shows  
+      "171db634ae2ae313edf438e829876c69", // UHD Movies
+      "3b37f5f09c7109a66c0e5ba425175e64"  // UHD Shows
+    ];
 
-    const userPolicy = userResponse.data.Policy || {};
+    const enabledFolders = planType === 'premium' ? PREMIUM_LIBRARIES : STANDARD_LIBRARIES;
 
     // Configure permissions based on plan type
-    const updatedPolicy = {
-      ...userPolicy,
+    const policyUpdate = {
       IsAdministrator: false,
       IsHidden: false,
       IsDisabled: false,
-      EnableAllDevices: true,
-      EnableAllChannels: true,
-      EnableAllFolders: true,
-      EnableContentDeletion: false,
-      EnableContentDownloading: true,
-      EnableSyncTranscoding: true,
+      EnableRemoteAccess: true,
+      EnableLiveTvAccess: false,
+      EnableLiveTvManagement: false,
       EnableMediaPlayback: true,
       EnableAudioPlaybackTranscoding: true,
       EnableVideoPlaybackTranscoding: true,
       EnablePlaybackRemuxing: true,
-      EnableContentDeletionFromFolders: [],
-      // Standard users get basic access, Premium users get 4K/UHD access
-      EnabledChannels: planType === 'premium' ? [] : [], // Empty array means all channels
-      EnabledFolders: planType === 'premium' ? [] : [], // Premium gets all folders including 4K
-      BlockedChannels: [],
-      BlockedMediaFolders: planType === 'standard' ? [] : [], // Standard might have 4K blocked
-      InvalidLoginAttemptCount: 3,
+      EnableContentDeletion: false,
+      EnableContentDownloading: true,
+      EnableSyncTranscoding: true,
+      RemoteClientBitrateLimit: planType === 'premium' ? 100000000 : 50000000, // 100 Mbps Premium, 50 Mbps Standard
+      MaxActiveSessions: planType === 'premium' ? 4 : 2,
+      LoginAttemptsBeforeLockout: 3,
+      EnabledFolders: enabledFolders,
+      EnableAllFolders: false,
       EnablePublicSharing: false,
-      MaxParentalRating: planType === 'premium' ? null : 1000, // No restrictions for premium
+      SyncPlayAccess: "JoinGroups"
     };
 
     // Update user policy
-    await axios.post(`${JELLYFIN_URL}/Users/${jellyfinUserId}/Policy`, updatedPolicy, {
+    await axios.post(`${JELLYFIN_URL}/Users/${jellyfinUserId}/Policy`, policyUpdate, {
       headers: { 
         'Content-Type': 'application/json',
-        'X-Emby-Token': API_KEY,
-        'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+        'X-Emby-Token': API_KEY
       }
     });
 
-    console.log(`Configured ${planType} permissions for Jellyfin user ${jellyfinUserId}`);
+    console.log(`✅ Configured ${planType} permissions for Jellyfin user ${jellyfinUserId} with ${enabledFolders.length} libraries`);
   } catch (error) {
-    console.error('Failed to configure Jellyfin user permissions:', error);
+    console.error('❌ Failed to configure Jellyfin user permissions:', error);
+  }
+}
+
+// Sync account status to Jellyfin (for suspension/activation)
+async function syncAccountStatusToJellyfin(jellyfinUserId: string, status: string) {
+  try {
+    const JELLYFIN_URL = 'https://watch.alfredflix.stream';
+    const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
+
+    const isDisabled = status === 'suspended';
+    
+    // Get current user policy first
+    const userResponse = await axios.get(`${JELLYFIN_URL}/Users/${jellyfinUserId}`, {
+      headers: { 'X-Emby-Token': API_KEY }
+    });
+
+    const currentPolicy = userResponse.data.Policy || {};
+    
+    // Update only the disabled status
+    const policyUpdate = {
+      ...currentPolicy,
+      IsDisabled: isDisabled
+    };
+
+    await axios.post(`${JELLYFIN_URL}/Users/${jellyfinUserId}/Policy`, policyUpdate, {
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Emby-Token': API_KEY
+      }
+    });
+
+    console.log(`✅ Synced account status: ${status} (disabled: ${isDisabled}) for Jellyfin user ${jellyfinUserId}`);
+  } catch (error) {
+    console.error('❌ Failed to sync account status to Jellyfin:', error);
   }
 }
 
@@ -268,7 +303,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const updates = req.body;
+      
+      // Get current user to check for changes
+      const currentUser = await storage.getUser(id);
+      if (!currentUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Update user in database
       const user = await storage.updateUser(id, updates);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      // Sync changes to Jellyfin if user has Jellyfin ID
+      if (user.jellyfinUserId) {
+        // Check if status changed and sync to Jellyfin
+        if (updates.status && updates.status !== currentUser.status) {
+          await syncAccountStatusToJellyfin(user.jellyfinUserId, updates.status);
+        }
+        
+        // Check if plan type changed and update permissions
+        if (updates.planType && updates.planType !== currentUser.planType) {
+          await configureJellyfinUserPermissions(user.jellyfinUserId, updates.planType);
+        }
+      }
+      
       res.json(user);
     } catch (error) {
       console.error('Update user error:', error);
@@ -302,14 +362,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
       
       try {
+        // Create user in Jellyfin using the correct endpoint
         const jellyfinResponse = await axios.post(`${JELLYFIN_URL}/Users/New`, {
           Name: username,
           Password: password
         }, {
           headers: { 
             'Content-Type': 'application/json',
-            'X-Emby-Token': API_KEY,
-            'X-Emby-Authorization': 'MediaBrowser Client="AlfredFlix-Admin", Device="Web Browser", DeviceId="alfredflix-admin", Version="1.0.0"'
+            'X-Emby-Token': API_KEY
           }
         });
 
