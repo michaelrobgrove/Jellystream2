@@ -251,9 +251,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    // Keep string format for timestamp fields to avoid conversion issues
+    const processedUpdates = { ...updates };
+    
     const [user] = await db
       .update(users)
-      .set(updates)
+      .set(processedUpdates)
       .where(eq(users.id, id))
       .returning();
     if (!user) throw new Error('User not found');

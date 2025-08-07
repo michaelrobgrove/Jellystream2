@@ -105,18 +105,35 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
     const JELLYFIN_URL = 'https://watch.alfredflix.stream';
     const API_KEY = 'f885d4ec4e7e491bb578e0980528dd08';
 
-    // Define specific library IDs for Standard and Premium plans
-    const STANDARD_LIBRARIES = [
-      "f137a2dd21bbc1b99aa5c0f6bf02a805", // Movies
-      "a656b907eb3a73532e40e44b968d0225"  // Shows
-    ];
+    // Get current library structure from Jellyfin
+    let STANDARD_LIBRARIES = [];
+    let PREMIUM_LIBRARIES = [];
     
-    const PREMIUM_LIBRARIES = [
-      "f137a2dd21bbc1b99aa5c0f6bf02a805", // Movies
-      "a656b907eb3a73532e40e44b968d0225", // Shows  
-      "171db634ae2ae313edf438e829876c69", // UHD Movies
-      "3b37f5f09c7109a66c0e5ba425175e64"  // UHD Shows
-    ];
+    try {
+      const librariesResponse = await axios.get(`${JELLYFIN_URL}/Library/MediaFolders`, {
+        headers: { 'X-Emby-Token': API_KEY }
+      });
+      
+      const libraries = librariesResponse.data.Items || [];
+      const movieLibs = libraries.filter(lib => lib.CollectionType === 'movies');
+      const tvLibs = libraries.filter(lib => lib.CollectionType === 'tvshows');
+      
+      // Standard gets regular movies and TV
+      STANDARD_LIBRARIES = [
+        ...movieLibs.filter(lib => !lib.Name.toLowerCase().includes('uhd') && !lib.Name.toLowerCase().includes('4k')).map(lib => lib.Id),
+        ...tvLibs.filter(lib => !lib.Name.toLowerCase().includes('uhd') && !lib.Name.toLowerCase().includes('4k')).map(lib => lib.Id)
+      ];
+      
+      // Premium gets all libraries
+      PREMIUM_LIBRARIES = libraries.map(lib => lib.Id);
+      
+      console.log(`Found ${libraries.length} libraries. Standard: ${STANDARD_LIBRARIES.length}, Premium: ${PREMIUM_LIBRARIES.length}`);
+    } catch (error) {
+      console.error('Failed to get library structure, using fallback IDs:', error.message);
+      // Fallback to hardcoded IDs
+      STANDARD_LIBRARIES = ["f137a2dd21bbc1b99aa5c0f6bf02a805", "a656b907eb3a73532e40e44b968d0225"];
+      PREMIUM_LIBRARIES = ["f137a2dd21bbc1b99aa5c0f6bf02a805", "a656b907eb3a73532e40e44b968d0225", "171db634ae2ae313edf438e829876c69", "3b37f5f09c7109a66c0e5ba425175e64"];
+    }
 
     const enabledFolders = planType === 'premium' ? PREMIUM_LIBRARIES : STANDARD_LIBRARIES;
 
@@ -311,6 +328,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
+      // Keep dates as strings for timestamp mode compatibility
+      
       // Update user in database
       const user = await storage.updateUser(id, updates);
       if (!user) {
