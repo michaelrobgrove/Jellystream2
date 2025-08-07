@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContactMessageSchema } from "@shared/schema";
+import { insertContactMessageSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import axios from "axios";
@@ -9,6 +9,8 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import Mailgun from "mailgun.js";
 import FormData from "form-data";
+import { ReferralService } from "./referral";
+import { nanoid } from "nanoid";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
@@ -317,6 +319,48 @@ passport.deserializeUser(async (id: string, done) => {
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // User registration route with referral support
+  app.post("/api/register", async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      const { referralCode } = req.body;
+
+      // Check if username or email already exists
+      const existingUser = await storage.getUserByUsername(validatedData.username);
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'Username already exists' });
+      }
+
+      // Generate referral code for new user
+      const userReferralCode = ReferralService.generateReferralCode();
+
+      // Create user
+      const newUser = await storage.createUser({
+        ...validatedData,
+        referralCode: userReferralCode,
+        referredBy: referralCode || null,
+      });
+
+      // Apply referral bonus if referral code provided
+      if (referralCode) {
+        await ReferralService.applyReferral(validatedData.username, referralCode);
+      }
+
+      res.json({ 
+        success: true, 
+        message: 'User created successfully',
+        user: { 
+          id: newUser.id,
+          username: newUser.username,
+          referralCode: userReferralCode
+        }
+      });
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      res.status(400).json({ success: false, message: error.message || 'Registration failed' });
+    }
+  });
+
   // Authentication routes
   app.post("/api/login", passport.authenticate('local'), (req, res) => {
     res.json({ user: req.user, message: 'Login successful' });
@@ -1014,20 +1058,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/create-subscription", async (req, res) => {
     try {
-      const { plan } = req.body;
-      const amount = plan === 'premium' ? 1499 : 999; // $14.99 or $9.99 in cents
+      const { plan, coupon, isReferral } = req.body;
+      let amount = plan === 'premium' ? 1499 : 999; // $14.99 or $9.99 in cents
       
-      const paymentIntent = await stripe.paymentIntents.create({
+      const metadata: any = { plan: plan || 'standard', type: 'subscription' };
+      
+      // Apply referral discount (new users get $1 first month)
+      if (isReferral) {
+        amount = 100; // $1 for first month with referral
+        metadata.referral_discount = 'true';
+      }
+      
+      const paymentIntentData: any = {
         amount,
         currency: "usd",
-        metadata: {
-          plan: plan || 'standard',
-          type: 'subscription'
-        },
-      });
+        metadata
+      };
+      
+      // Apply Stripe coupon if provided
+      if (coupon) {
+        try {
+          // Validate coupon exists in Stripe
+          const couponData = await stripe.coupons.retrieve(coupon);
+          
+          // Create customer with coupon for future use
+          const customer = await stripe.customers.create({
+            metadata: { plan, coupon_code: coupon }
+          });
+          
+          paymentIntentData.customer = customer.id;
+          metadata.coupon_code = coupon;
+          
+          // Apply coupon discount
+          if (couponData.amount_off) {
+            amount = Math.max(100, amount - couponData.amount_off); // Minimum $1
+          } else if (couponData.percent_off) {
+            amount = Math.max(100, Math.round(amount * (1 - couponData.percent_off / 100)));
+          }
+          
+          paymentIntentData.amount = amount;
+        } catch (couponError) {
+          console.error('Invalid coupon:', couponError);
+          return res.status(400).json({ message: "Invalid coupon code" });
+        }
+      }
+      
+      const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
       
       res.json({ clientSecret: paymentIntent.client_secret });
     } catch (error: any) {
+      console.error('Stripe payment intent error:', error);
       res
         .status(500)
         .json({ message: "Error creating subscription: " + error.message });

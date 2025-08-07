@@ -206,15 +206,22 @@ export default function Subscribe() {
   const [plan, setPlan] = useState<'standard' | 'premium'>('standard');
 
   useEffect(() => {
-    // Get plan from URL params
+    // Get plan and coupon from URL params
     const urlParams = new URLSearchParams(window.location.search);
     const planParam = urlParams.get('plan') as 'standard' | 'premium';
+    const couponParam = urlParams.get('coupon');
+    const referralParam = urlParams.get('referral');
+    
     if (planParam) {
       setPlan(planParam);
     }
 
-    // Create subscription
-    apiRequest("POST", "/api/create-subscription", { plan: planParam || 'standard' })
+    // Create subscription with coupon support
+    const requestData: any = { plan: planParam || 'standard' };
+    if (couponParam) requestData.coupon = couponParam;
+    if (referralParam === 'true') requestData.isReferral = true;
+
+    apiRequest("POST", "/api/create-subscription", requestData)
       .then((res) => res.json())
       .then((data) => {
         setClientSecret(data.clientSecret);

@@ -16,6 +16,8 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<User>): Promise<User>;
   updateStripeCustomerId(id: string, customerId: string): Promise<User>;
   updateUserStripeInfo(id: string, info: { customerId: string; subscriptionId: string }): Promise<User>;
+  updateReferralCredits(id: string, credits: string): Promise<User>;
+  setReferralCode(id: string, code: string): Promise<User>;
   deleteUser(id: string): Promise<void>;
 }
 
@@ -272,6 +274,26 @@ export class DatabaseStorage implements IStorage {
       stripeCustomerId: info.customerId, 
       stripeSubscriptionId: info.subscriptionId 
     });
+  }
+
+  async updateReferralCredits(id: string, credits: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ referralCredits: credits })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) throw new Error('User not found');
+    return user;
+  }
+
+  async setReferralCode(id: string, code: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ referralCode: code })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) throw new Error('User not found');
+    return user;
   }
 
   async deleteUser(id: string): Promise<void> {

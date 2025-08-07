@@ -5,7 +5,9 @@ AlfredFlix is a modern, Netflix-like web interface for Jellyfin media servers th
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
-Testing protocol: Use "prem1" for premium and "std1" for standard test users only. Clean up test accounts after testing.
+Testing protocol: Create temporary users for testing, user will delete after to avoid dashboard clutter.
+User cleanup: Removed all test users except masteradm and srvadmin as requested.
+Website improvements: Enhanced home page with movie/TV show focused design, removed review section, improved mobile responsiveness.
 
 # System Architecture
 
@@ -52,12 +54,15 @@ Testing protocol: Use "prem1" for premium and "std1" for standard test users onl
 ## Database & Infrastructure
 - **Neon Database**: Serverless PostgreSQL database with connection pooling via @neondatabase/serverless
 - **Database URL**: Environment variable configuration for flexible deployment
+- **Referral System**: Added referral_code, referred_by, and referral_credits columns to users table
 
 ## Payment Processing
 - **Stripe Integration**: 
   - React Stripe.js components for secure payment forms
   - Webhook handling for subscription lifecycle management
   - Predefined pricing tiers ($9.99 Standard, $14.99 Premium)
+  - **Coupon Support**: Stripe coupon validation and discount application
+  - **Referral Program**: New users get $1 first month, referring users get $5 credit (max 3 stacked)
 
 ## UI Components & Styling
 - **Radix UI**: Comprehensive set of unstyled, accessible components

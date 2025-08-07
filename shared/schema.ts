@@ -17,6 +17,9 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   expiresAt: timestamp("expires_at", { mode: 'string' }).default(sql`NOW() + INTERVAL '30 days'`),
   neverExpires: boolean("never_expires").notNull().default(false),
+  referralCode: text("referral_code").unique(),
+  referredBy: text("referred_by"),
+  referralCredits: numeric("referral_credits", { precision: 10, scale: 2 }).default("0.00"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
