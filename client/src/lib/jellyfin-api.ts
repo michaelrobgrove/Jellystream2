@@ -214,10 +214,7 @@ class JellyfinAPI {
     }
   }
 
-  logout() {
-    this.accessToken = null;
-    this.userId = null;
-  }
+
 
   getImageUrl(itemId: string, imageType: 'Primary' | 'Backdrop' = 'Primary', tag?: string): string {
     const baseUrl = `${JELLYFIN_URL}/Items/${itemId}/Images/${imageType}`;

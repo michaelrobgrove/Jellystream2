@@ -66,6 +66,24 @@ export default function Dashboard() {
     setShowPlayer(true);
   };
 
+  // Show login prompt if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl lg:text-6xl font-bold text-white mb-4">AlfredFlix</h1>
+          <p className="text-xl text-zinc-300 mb-8">Please log in to access your premium content</p>
+          <a 
+            href="/login" 
+            className="bg-amber-500 text-zinc-900 px-6 py-3 rounded-lg font-semibold hover:bg-amber-400 transition-colors"
+          >
+            Sign In
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-zinc-900" data-testid="dashboard-page">
       <Navigation />
