@@ -99,6 +99,63 @@ async function sendAccountDeletionEmail(email: string, username: string) {
   }
 }
 
+async function sendAdminNotificationEmail(username: string, email: string, expiresAt: string | null, planType: string) {
+  if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN || !process.env.MAILGUN_FROM_EMAIL) {
+    console.log('Mailgun not configured, skipping admin notification email');
+    return;
+  }
+
+  try {
+    const expirationDate = expiresAt ? new Date(expiresAt).toLocaleDateString() : 'Never expires';
+    
+    const messageData = {
+      from: process.env.MAILGUN_FROM_EMAIL,
+      to: 'accts@alfredflix.stream',
+      subject: `New AlfredFlix Account: ${username}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8f9fa; padding: 30px; border-radius: 8px;">
+          <h2 style="color: #333; margin-bottom: 20px;">🆕 New Account Alert</h2>
+          
+          <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #f59e0b;">
+            <h3 style="color: #f59e0b; margin-top: 0;">Account Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Username:</td>
+                <td style="padding: 8px 0; color: #333;">${username}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
+                <td style="padding: 8px 0; color: #333;">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Plan Type:</td>
+                <td style="padding: 8px 0; color: #333; text-transform: capitalize;">${planType}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Expires:</td>
+                <td style="padding: 8px 0; color: #333;">${expirationDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Created:</td>
+                <td style="padding: 8px 0; color: #333;">${new Date().toLocaleString()}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <p style="margin-top: 20px; color: #666; font-size: 12px;">
+            This is an automated notification from the AlfredFlix account system.
+          </p>
+        </div>
+      `
+    };
+
+    await mg.messages.create(process.env.MAILGUN_DOMAIN, messageData);
+    console.log(`Admin notification sent for new user: ${username}`);
+  } catch (error) {
+    console.error('Failed to send admin notification email:', error);
+  }
+}
+
 // Configure Jellyfin user permissions based on plan type
 async function configureJellyfinUserPermissions(jellyfinUserId: string, planType: string) {
   try {
@@ -137,29 +194,22 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
 
     const enabledFolders = planType === 'premium' ? PREMIUM_LIBRARIES : STANDARD_LIBRARIES;
 
-    // Configure permissions based on plan type with STRICT folder restrictions
+    // Get current user policy first to avoid validation errors
+    const userResponse = await axios.get(`${JELLYFIN_URL}/Users/${jellyfinUserId}`, {
+      headers: { 'X-Emby-Token': API_KEY }
+    });
+    
+    const currentPolicy = userResponse.data.Policy || {};
+    
+    // Configure only essential permissions to avoid validation errors
     const policyUpdate = {
+      ...currentPolicy, // Keep existing policy structure
       IsAdministrator: false,
-      IsHidden: false,
       IsDisabled: false,
-      EnableRemoteAccess: true,
-      EnableLiveTvAccess: false,
-      EnableLiveTvManagement: false,
-      EnableMediaPlayback: true,
-      EnableAudioPlaybackTranscoding: true,
-      EnableVideoPlaybackTranscoding: true,
-      EnablePlaybackRemuxing: true,
-      EnableContentDeletion: false,
-      EnableContentDownloading: true,
-      EnableSyncTranscoding: true,
-      RemoteClientBitrateLimit: planType === 'premium' ? 100000000 : 50000000, // 100 Mbps Premium, 50 Mbps Standard
-      MaxActiveSessions: planType === 'premium' ? 4 : 2,
-      LoginAttemptsBeforeLockout: 3,
       EnabledFolders: enabledFolders, // SPECIFIC folder access
       EnableAllFolders: false, // CRITICAL: Must be false to enforce restrictions
-      BlockedMediaFolders: planType === 'standard' ? ["171db634ae2ae313edf438e829876c69", "3b37f5f09c7109a66c0e5ba425175e64"] : [], // Block UHD for Standard
-      EnablePublicSharing: false,
-      SyncPlayAccess: "JoinGroups"
+      RemoteClientBitrateLimit: planType === 'premium' ? 100000000 : 50000000, // 100 Mbps Premium, 50 Mbps Standard
+      MaxActiveSessions: planType === 'premium' ? 4 : 2
     };
 
     // Update user policy
@@ -410,6 +460,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Send welcome email with login details
         await sendWelcomeEmail(email, username, password, planType);
+        
+        // Send admin notification email
+        await sendAdminNotificationEmail(username, email, updatedUser.expiresAt, planType);
 
         console.log(`Created user ${username} in both AlfredFlix and Jellyfin (ID: ${jellyfinUser.Id})`);
         res.json(updatedUser);
