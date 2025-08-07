@@ -201,15 +201,31 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
     
     const currentPolicy = userResponse.data.Policy || {};
     
-    // Configure only essential permissions to avoid validation errors
+    // Configure comprehensive permissions with all required restrictions
     const policyUpdate = {
       ...currentPolicy, // Keep existing policy structure
-      IsAdministrator: false,
+      IsAdministrator: false, // Allow this user to manage the server
       IsDisabled: false,
+      IsHidden: true, // Hide this user from login screens
       EnabledFolders: enabledFolders, // SPECIFIC folder access
       EnableAllFolders: false, // CRITICAL: Must be false to enforce restrictions
       RemoteClientBitrateLimit: planType === 'premium' ? 100000000 : 50000000, // 100 Mbps Premium, 50 Mbps Standard
-      MaxActiveSessions: planType === 'premium' ? 4 : 2
+      MaxActiveSessions: planType === 'premium' ? 4 : 2,
+      LoginAttemptsBeforeLockout: 3, // Failed login tries before user is locked out
+      
+      // Disable server management capabilities
+      EnableCollectionManagement: false, // Allow this user to manage collections
+      EnableSubtitleManagement: false, // Allow this user to edit subtitles
+      EnableLiveTvAccess: false, // Allow Live TV access
+      EnableLiveTvManagement: false, // Allow Live TV recording management
+      
+      // Media playback restrictions
+      EnableVideoPlaybackTranscoding: planType === 'premium', // Allow video playback that requires transcoding (Premium only)
+      EnablePlaybackRemuxing: true, // Allow video playback that requires conversion without re-encoding
+      
+      // Remote control restrictions
+      EnableRemoteControlOfOtherUsers: false, // Allow remote control of other users
+      EnableSharedDeviceControl: false // Allow remote control of shared devices
     };
 
     // Update user policy
@@ -220,9 +236,17 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
       }
     });
 
-    console.log(`✅ Configured ${planType} permissions for Jellyfin user ${jellyfinUserId} with ${enabledFolders.length} libraries`);
+    console.log(`✅ Configured ${planType} permissions for Jellyfin user ${jellyfinUserId}:`);
+    console.log(`   - Libraries: ${enabledFolders.length} accessible`);
+    console.log(`   - Hidden from login: ${policyUpdate.IsHidden}`);
+    console.log(`   - Login attempts limit: ${policyUpdate.LoginAttemptsBeforeLockout}`);
+    console.log(`   - Admin access: ${policyUpdate.IsAdministrator}`);
+    console.log(`   - Transcoding allowed: ${policyUpdate.EnableVideoPlaybackTranscoding}`);
   } catch (error) {
     console.error('❌ Failed to configure Jellyfin user permissions:', error);
+    if (error.response) {
+      console.error('   Validation errors:', error.response.data);
+    }
   }
 }
 
