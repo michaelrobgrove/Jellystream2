@@ -5,6 +5,7 @@ AlfredFlix is a modern, Netflix-like web interface for Jellyfin media servers th
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
+Testing protocol: Use "prem1" for premium and "std1" for standard test users only. Clean up test accounts after testing.
 
 # System Architecture
 
