@@ -1035,27 +1035,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ valid: false, message: "Coupon code required" });
       }
       
-      // Validate with Stripe
-      const couponData = await stripe.coupons.retrieve(coupon);
-      if (!couponData.valid) {
-        return res.json({ valid: false, message: "Coupon expired or invalid" });
+      // Check in our database first
+      const localCoupon = await storage.getCouponByCode(coupon);
+      if (localCoupon) {
+        if (!localCoupon.isActive) {
+          return res.json({ valid: false, message: "Coupon expired or deactivated" });
+        }
+        
+        if (localCoupon.expiresAt && new Date(localCoupon.expiresAt) < new Date()) {
+          return res.json({ valid: false, message: "Coupon expired" });
+        }
+        
+        if (localCoupon.maxUses && parseInt(localCoupon.currentUses || "0") >= parseInt(localCoupon.maxUses)) {
+          return res.json({ valid: false, message: "Coupon usage limit reached" });
+        }
+        
+        let discountText = "";
+        let discount = {};
+        
+        if (localCoupon.discountType === 'percent') {
+          discountText = `${localCoupon.discountValue}% off`;
+          discount = { percent_off: parseFloat(localCoupon.discountValue) };
+        } else if (localCoupon.discountType === 'amount') {
+          discountText = `$${localCoupon.discountValue} off`;
+          discount = { amount_off: parseFloat(localCoupon.discountValue) * 100 }; // Convert to cents
+        } else if (localCoupon.discountType === 'free_month') {
+          discountText = "Free first month";
+          discount = { percent_off: 100 };
+        }
+        
+        return res.json({ 
+          valid: true, 
+          message: `Valid coupon - ${discountText}!`,
+          discount
+        });
       }
       
-      const discountText = couponData.percent_off 
-        ? `${couponData.percent_off}% off`
-        : `$${(couponData.amount_off! / 100).toFixed(2)} off`;
-        
-      res.json({ 
-        valid: true, 
-        message: `Valid coupon - ${discountText}!`,
-        discount: {
-          percent_off: couponData.percent_off,
-          amount_off: couponData.amount_off
+      // Fallback to Stripe validation for backwards compatibility
+      try {
+        const couponData = await stripe.coupons.retrieve(coupon);
+        if (!couponData.valid) {
+          return res.json({ valid: false, message: "Coupon expired or invalid" });
         }
-      });
+        
+        const discountText = couponData.percent_off 
+          ? `${couponData.percent_off}% off`
+          : `$${(couponData.amount_off! / 100).toFixed(2)} off`;
+          
+        res.json({ 
+          valid: true, 
+          message: `Valid coupon - ${discountText}!`,
+          discount: {
+            percent_off: couponData.percent_off,
+            amount_off: couponData.amount_off
+          }
+        });
+      } catch (stripeError) {
+        res.json({ valid: false, message: "Invalid coupon code" });
+      }
     } catch (error) {
       console.error('Coupon validation error:', error);
-      res.json({ valid: false, message: "Invalid coupon code" });
+      res.json({ valid: false, message: "Validation failed" });
     }
   });
 
@@ -1167,8 +1207,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create user account now that payment is confirmed
-      const insertUser = { username, email, password, planType };
+      const insertUser: any = { username, email, password, planType };
+      console.log('Creating user with data:', insertUser);
       const newUser = await storage.createUser(insertUser);
+      console.log('User created successfully:', newUser.id);
       
       // Process referral credits if applicable
       if (referralCode) {
@@ -1223,6 +1265,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Bulk extend expiration error:', error);
       res.status(500).json({ error: "Failed to extend expiration dates" });
+    }
+  });
+
+  // Coupon management endpoints
+  app.get("/api/admin/coupons", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const coupons = await storage.getAllCoupons();
+      res.json(coupons);
+    } catch (error) {
+      console.error('Get coupons error:', error);
+      res.status(500).json({ error: "Failed to fetch coupons" });
+    }
+  });
+
+  app.post("/api/admin/coupons", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const couponData = {
+        ...req.body,
+        createdBy: req.user.id
+      };
+      
+      const coupon = await storage.createCoupon(couponData);
+      res.json(coupon);
+    } catch (error) {
+      console.error('Create coupon error:', error);
+      res.status(500).json({ error: "Failed to create coupon" });
+    }
+  });
+
+  app.put("/api/admin/coupons/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { id } = req.params;
+      const coupon = await storage.updateCoupon(id, req.body);
+      res.json(coupon);
+    } catch (error) {
+      console.error('Update coupon error:', error);
+      res.status(500).json({ error: "Failed to update coupon" });
+    }
+  });
+
+  app.delete("/api/admin/coupons/:id", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    try {
+      const { id } = req.params;
+      await storage.deleteCoupon(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete coupon error:', error);
+      res.status(500).json({ error: "Failed to delete coupon" });
     }
   });
 

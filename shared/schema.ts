@@ -43,6 +43,22 @@ export const watchProgress = pgTable("watch_progress", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const coupons = pgTable("coupons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  discountType: text("discount_type").notNull(), // 'percent', 'amount', 'free_month'
+  discountValue: numeric("discount_value", { precision: 10, scale: 2 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  oneTimeUse: boolean("one_time_use").notNull().default(false),
+  newAccountsOnly: boolean("new_accounts_only").notNull().default(false),
+  maxUses: numeric("max_uses", { precision: 10, scale: 0 }),
+  currentUses: numeric("current_uses", { precision: 10, scale: 0 }).default("0"),
+  expiresAt: timestamp("expires_at", { mode: 'string' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -65,9 +81,23 @@ export const insertWatchProgressSchema = createInsertSchema(watchProgress).pick(
   isWatched: true,
 });
 
+export const insertCouponSchema = createInsertSchema(coupons).pick({
+  code: true,
+  name: true,
+  discountType: true,
+  discountValue: true,
+  isActive: true,
+  oneTimeUse: true,
+  newAccountsOnly: true,
+  maxUses: true,
+  expiresAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
 export type ContactMessage = typeof contactMessages.$inferSelect;
 export type InsertWatchProgress = z.infer<typeof insertWatchProgressSchema>;
 export type WatchProgress = typeof watchProgress.$inferSelect;
+export type InsertCoupon = z.infer<typeof insertCouponSchema>;
+export type Coupon = typeof coupons.$inferSelect;

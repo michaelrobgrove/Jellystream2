@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type ContactMessage, type InsertContactMessage, users, contactMessages } from "@shared/schema";
+import { type User, type InsertUser, type ContactMessage, type InsertContactMessage, type Coupon, type InsertCoupon, users, contactMessages, coupons } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -19,15 +19,25 @@ export interface IStorage {
   updateReferralCredits(id: string, credits: string): Promise<User>;
   setReferralCode(id: string, code: string): Promise<User>;
   deleteUser(id: string): Promise<void>;
+  
+  // Coupon management
+  createCoupon(coupon: InsertCoupon & { createdBy: string }): Promise<Coupon>;
+  getAllCoupons(): Promise<Coupon[]>;
+  getCouponByCode(code: string): Promise<Coupon | undefined>;
+  updateCoupon(id: string, updates: Partial<Coupon>): Promise<Coupon>;
+  deleteCoupon(id: string): Promise<void>;
+  incrementCouponUse(id: string): Promise<Coupon>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private contactMessages: Map<string, ContactMessage>;
+  private coupons: Map<string, Coupon>;
 
   constructor() {
     this.users = new Map();
     this.contactMessages = new Map();
+    this.coupons = new Map();
     
     // Create default admin user for testing
     this.createAdminUser();
@@ -205,6 +215,50 @@ export class MemStorage implements IStorage {
     const exists = this.users.has(id);
     if (!exists) throw new Error('User not found');
     this.users.delete(id);
+  }
+
+  // Coupon management methods
+  async createCoupon(couponData: InsertCoupon & { createdBy: string }): Promise<Coupon> {
+    const id = randomUUID();
+    const coupon: Coupon = {
+      id,
+      ...couponData,
+      currentUses: "0",
+      createdAt: new Date(),
+    };
+    this.coupons.set(id, coupon);
+    return coupon;
+  }
+
+  async getAllCoupons(): Promise<Coupon[]> {
+    return Array.from(this.coupons.values());
+  }
+
+  async getCouponByCode(code: string): Promise<Coupon | undefined> {
+    return Array.from(this.coupons.values()).find(c => c.code === code);
+  }
+
+  async updateCoupon(id: string, updates: Partial<Coupon>): Promise<Coupon> {
+    const coupon = this.coupons.get(id);
+    if (!coupon) throw new Error("Coupon not found");
+    
+    const updated = { ...coupon, ...updates };
+    this.coupons.set(id, updated);
+    return updated;
+  }
+
+  async deleteCoupon(id: string): Promise<void> {
+    this.coupons.delete(id);
+  }
+
+  async incrementCouponUse(id: string): Promise<Coupon> {
+    const coupon = this.coupons.get(id);
+    if (!coupon) throw new Error("Coupon not found");
+    
+    const currentUses = parseInt(coupon.currentUses || "0");
+    coupon.currentUses = (currentUses + 1).toString();
+    this.coupons.set(id, coupon);
+    return coupon;
   }
 }
 
