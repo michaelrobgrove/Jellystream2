@@ -2,6 +2,8 @@ import { Play, Clock, Star } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { jellyfinApi, type JellyfinItem } from '@/lib/jellyfin-api';
 import { Badge } from '@/components/ui/badge';
+import { fanartAPI } from '@/lib/fanart-api';
+import { useState, useEffect } from 'react';
 
 interface MediaCardProps {
   item: JellyfinItem;
@@ -20,15 +22,45 @@ export function MediaCard({
   size = 'medium',
   onClick 
 }: MediaCardProps) {
+  const [fanartImageUrl, setFanartImageUrl] = useState<string | null>(null);
+
+  // Updated size classes to use 3:2 aspect ratio
   const sizeClasses = {
-    small: 'w-32 h-48',
-    medium: 'w-48 h-72',
-    large: 'w-64 h-96'
+    small: 'w-40 h-60',    // 3:2 ratio (40*1.5 = 60)
+    medium: 'w-48 h-72',   // 3:2 ratio (48*1.5 = 72) 
+    large: 'w-64 h-96'     // 3:2 ratio (64*1.5 = 96)
   };
 
-  const posterUrl = item.ImageTags?.Primary 
-    ? jellyfinApi.getImageUrl(item.Id, 'Primary', item.ImageTags.Primary)
-    : '/api/placeholder/300/450';
+  // Get FanArt image if available
+  useEffect(() => {
+    async function loadFanArt() {
+      if (item.ProviderIds?.Tmdb) {
+        const fanartData = await fanartAPI.getMovieArt(item.ProviderIds.Tmdb);
+        if (fanartData) {
+          const posterUrl = fanartAPI.getBestPoster(fanartData, 'movie');
+          if (posterUrl) {
+            setFanartImageUrl(posterUrl);
+          }
+        }
+      } else if (item.ProviderIds?.Tvdb && (item.Type === 'Series' || item.Type === 'Episode')) {
+        const fanartData = await fanartAPI.getShowArt(item.ProviderIds.Tvdb);
+        if (fanartData) {
+          const posterUrl = fanartAPI.getBestPoster(fanartData, 'tv');
+          if (posterUrl) {
+            setFanartImageUrl(posterUrl);
+          }
+        }
+      }
+    }
+    
+    loadFanArt();
+  }, [item.ProviderIds?.Tmdb, item.ProviderIds?.Tvdb, item.Type]);
+
+  // Fallback to Jellyfin images if FanArt not available
+  const posterUrl = fanartImageUrl || 
+    (item.ImageTags?.Primary 
+      ? jellyfinApi.getImageUrl(item.Id, 'Primary', item.ImageTags.Primary)
+      : '/api/placeholder/300/450');
 
   const backdropUrl = item.BackdropImageTags?.[0]
     ? jellyfinApi.getImageUrl(item.Id, 'Backdrop', item.BackdropImageTags[0])
@@ -50,14 +82,24 @@ export function MediaCard({
       onClick={onClick}
       data-testid={`media-card-${item.Id}`}
     >
-      <img 
-        src={displayImage}
-        alt={item.Name}
-        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-        onError={(e) => {
-          e.currentTarget.src = '/api/placeholder/300/450';
-        }}
-      />
+      <div className="aspect-[3/2] relative overflow-hidden">
+        <img 
+          src={displayImage}
+          alt={item.Name}
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={(e) => {
+            // Fallback to Jellyfin image if FanArt fails
+            if (fanartImageUrl && e.currentTarget.src === fanartImageUrl) {
+              const fallbackUrl = item.ImageTags?.Primary 
+                ? jellyfinApi.getImageUrl(item.Id, 'Primary', item.ImageTags.Primary)
+                : '/api/placeholder/300/450';
+              e.currentTarget.src = fallbackUrl;
+            } else {
+              e.currentTarget.src = '/api/placeholder/300/450';
+            }
+          }}
+        />
+      </div>
       
       {/* Overlay */}
       <div className="media-overlay absolute inset-0 bg-black/60 flex flex-col items-center justify-center">

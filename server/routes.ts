@@ -204,26 +204,26 @@ async function configureJellyfinUserPermissions(jellyfinUserId: string, planType
     // Configure comprehensive permissions with all required restrictions
     const policyUpdate = {
       ...currentPolicy, // Keep existing policy structure
-      IsAdministrator: false, // Allow this user to manage the server
+      IsAdministrator: false, // UNCHECK: Allow this user to manage the server
       IsDisabled: false,
-      IsHidden: true, // Hide this user from login screens
+      IsHidden: true, // CHECK: Hide this user from login screens
       EnabledFolders: enabledFolders, // SPECIFIC folder access
       EnableAllFolders: false, // CRITICAL: Must be false to enforce restrictions
-      RemoteClientBitrateLimit: planType === 'premium' ? 100000000 : 50000000, // 100 Mbps Premium, 50 Mbps Standard
+      RemoteClientBitrateLimit: planType === 'premium' ? 100000000 : 50000000,
       MaxActiveSessions: planType === 'premium' ? 4 : 2,
-      LoginAttemptsBeforeLockout: 3, // Failed login tries before user is locked out
+      LoginAttemptsBeforeLockout: 3, // Failed login tries before user is locked out: 3
       
-      // Disable server management capabilities
+      // UNCHECK all these server management capabilities
       EnableCollectionManagement: false, // Allow this user to manage collections
-      EnableSubtitleManagement: false, // Allow this user to edit subtitles
+      EnableSubtitleManagement: false, // Allow this user to edit subtitles  
       EnableLiveTvAccess: false, // Allow Live TV access
       EnableLiveTvManagement: false, // Allow Live TV recording management
       
-      // Media playback restrictions
-      EnableVideoPlaybackTranscoding: planType === 'premium', // Allow video playback that requires transcoding (Premium only)
-      EnablePlaybackRemuxing: true, // Allow video playback that requires conversion without re-encoding
+      // Media playback restrictions - UNCHECK transcoding for Standard users
+      EnableVideoPlaybackTranscoding: false, // UNCHECK: Allow video playback that requires transcoding 
+      EnablePlaybackRemuxing: false, // UNCHECK: Allow video playback that requires conversion without re-encoding
       
-      // Remote control restrictions
+      // UNCHECK remote control capabilities
       EnableRemoteControlOfOtherUsers: false, // Allow remote control of other users
       EnableSharedDeviceControl: false // Allow remote control of shared devices
     };

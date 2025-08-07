@@ -144,6 +144,21 @@
     @apply bg-zinc-800/50 border border-zinc-700/50 rounded-md p-4 transition-colors;
   }
 
+  /* Enhanced media card styling with consistent 3:2 aspect ratio */
+  .media-card {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .media-card img {
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* Ensure consistent aspect ratio across all card sizes */
+  .media-card .aspect-\[3\/2\] {
+    aspect-ratio: 3/2;
+  }
+
   .StripeElement:focus,
   .StripeElement--focus {
     @apply border-amber-500/50 shadow-sm;
