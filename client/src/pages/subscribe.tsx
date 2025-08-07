@@ -22,6 +22,23 @@ const SubscribeForm = ({ plan }: { plan: 'standard' | 'premium' }) => {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
+  const [discountedPrice, setDiscountedPrice] = useState<string | null>(null);
+  
+  // Check URL params for discounts
+  const urlParams = new URLSearchParams(window.location.search);
+  const couponParam = urlParams.get('coupon');
+  const referralParam = urlParams.get('referral');
+
+  // Calculate display price based on discounts
+  useEffect(() => {
+    if (referralParam === 'true') {
+      setDiscountedPrice('$1.00');
+    } else if (couponParam === 'demo1') {
+      const basePrice = plan === 'premium' ? 14.99 : 9.99;
+      const discounted = (basePrice * 0.9).toFixed(2); // 10% off
+      setDiscountedPrice(`$${discounted}`);
+    }
+  }, [plan, couponParam, referralParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,9 +124,20 @@ const SubscribeForm = ({ plan }: { plan: 'standard' | 'premium' }) => {
                 )}
               </div>
               <div className="text-3xl font-bold alfredflix-text-gradient">
-                {selectedPlan.price}
+                {discountedPrice ? (
+                  <div className="flex items-center space-x-2">
+                    <span>{discountedPrice}</span>
+                    <span className="text-sm text-zinc-500 line-through">{selectedPlan.price}</span>
+                  </div>
+                ) : selectedPlan.price}
                 <span className="text-lg text-zinc-400 font-normal">/month</span>
               </div>
+              {discountedPrice && (
+                <p className="text-sm text-amber-500 mt-2">
+                  {referralParam === 'true' && 'Referral discount applied: First month for $1!'}
+                  {couponParam === 'demo1' && 'Coupon discount applied: 10% off!'}
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
@@ -186,14 +214,10 @@ const SubscribeForm = ({ plan }: { plan: 'standard' | 'premium' }) => {
 
         {/* Trust Indicators */}
         <div className="mt-8 text-center">
-          <p className="text-zinc-500 text-sm mb-4">
-            Trusted by over 10,000 satisfied subscribers worldwide
-          </p>
           <div className="flex items-center justify-center space-x-6 text-xs text-zinc-600">
             <span>🔒 SSL Secured</span>
             <span>💳 Stripe Protected</span>
             <span>⭐ 4.9/5 Rating</span>
-            <span>🛡️ Money-Back Guarantee</span>
           </div>
         </div>
       </div>

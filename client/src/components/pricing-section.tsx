@@ -140,7 +140,7 @@ export function PricingSection() {
                   </Button>
                   
                   <p className="text-center text-xs text-zinc-500 mt-3">
-                    7-day free trial • Cancel anytime
+                    Cancel anytime
                   </p>
                 </CardContent>
               </Card>
