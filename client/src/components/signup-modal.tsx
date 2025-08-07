@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,11 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
   });
   const [couponCode, setCouponCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [validatingReferral, setValidatingReferral] = useState(false);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [couponValid, setCouponValid] = useState<boolean | null>(null);
+  const [discountedPrice, setDiscountedPrice] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,36 +42,26 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
     setIsLoading(true);
 
     try {
-      // Create user account with referral
-      const response = await apiRequest('POST', '/api/register', {
+      // Store signup data in session storage and redirect to payment
+      const signupData = {
         ...formData,
-        planType: plan
-      });
-
-      const result = await response.json();
+        planType: plan,
+        couponCode: couponCode || undefined
+      };
       
-      if (result.success) {
-        toast({
-          title: "Account Created!",
-          description: formData.referralCode 
-            ? "Welcome! Your referral bonus has been applied. Redirecting to payment..."
-            : "Welcome to AlfredFlix! Redirecting to payment...",
-        });
-
-        // Redirect to subscription page with coupon
-        const params = new URLSearchParams({
-          plan,
-          ...(couponCode && { coupon: couponCode }),
-          ...(formData.referralCode && { referral: 'true' })
-        });
-        
-        window.location.href = `/subscribe?${params.toString()}`;
-      } else {
-        throw new Error(result.message || 'Registration failed');
-      }
+      sessionStorage.setItem('pendingSignup', JSON.stringify(signupData));
+      
+      // Redirect to subscription page with all data
+      const params = new URLSearchParams({
+        plan,
+        ...(couponCode && { coupon: couponCode }),
+        ...(formData.referralCode && { referral: formData.referralCode })
+      });
+      
+      window.location.href = `/subscribe?${params.toString()}`;
     } catch (error: any) {
       toast({
-        title: "Registration Failed",
+        title: "Error",
         description: error.message || "Please try again later.",
         variant: "destructive",
       });
@@ -76,11 +71,91 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
   };
 
   const planDetails = {
-    standard: { name: 'Standard', price: '$9.99', originalPrice: '$9.99' },
-    premium: { name: 'Premium', price: '$14.99', originalPrice: '$14.99' }
+    standard: { name: 'Standard', price: '$9.99', originalPrice: '$9.99', basePrice: 9.99 },
+    premium: { name: 'Premium', price: '$14.99', originalPrice: '$14.99', basePrice: 14.99 }
   };
 
   const selectedPlan = planDetails[plan];
+
+  // Real-time referral validation
+  const validateReferral = async (referralCode: string) => {
+    if (!referralCode.trim()) {
+      setReferralValid(null);
+      calculatePrice();
+      return;
+    }
+    
+    setValidatingReferral(true);
+    try {
+      const response = await apiRequest('POST', '/api/validate-referral', { referralCode });
+      const result = await response.json();
+      setReferralValid(result.valid);
+      calculatePrice();
+    } catch (error) {
+      setReferralValid(false);
+      calculatePrice();
+    } finally {
+      setValidatingReferral(false);
+    }
+  };
+
+  // Real-time coupon validation
+  const validateCoupon = async (coupon: string) => {
+    if (!coupon.trim()) {
+      setCouponValid(null);
+      calculatePrice();
+      return;
+    }
+    
+    setValidatingCoupon(true);
+    try {
+      const response = await apiRequest('POST', '/api/validate-coupon', { coupon });
+      const result = await response.json();
+      setCouponValid(result.valid);
+      calculatePrice();
+    } catch (error) {
+      setCouponValid(false);
+      calculatePrice();
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  // Calculate final price with discounts
+  const calculatePrice = () => {
+    let finalPrice = selectedPlan.basePrice;
+    
+    if (referralValid) {
+      finalPrice = 1.00; // Referral makes first month $1
+    } else if (couponValid && couponCode === 'demo1') {
+      finalPrice = finalPrice * 0.9; // 10% off
+    }
+    
+    if (finalPrice !== selectedPlan.basePrice) {
+      setDiscountedPrice(`$${finalPrice.toFixed(2)}`);
+    } else {
+      setDiscountedPrice(null);
+    }
+  };
+
+  // Debounced validation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.referralCode) {
+        validateReferral(formData.referralCode);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [formData.referralCode]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (couponCode) {
+        validateCoupon(couponCode);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [couponCode]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,8 +187,24 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-bold alfredflix-text-gradient">{selectedPlan.price}</p>
-                  <p className="text-xs text-zinc-400">per month</p>
+                  {discountedPrice ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-end space-x-2">
+                        <p className="text-xl font-bold alfredflix-text-gradient">{discountedPrice}</p>
+                        <p className="text-sm text-zinc-500 line-through">{selectedPlan.price}</p>
+                      </div>
+                      <p className="text-xs text-zinc-400">per month</p>
+                      <p className="text-xs text-amber-500">
+                        {referralValid && 'Referral discount applied!'}
+                        {couponValid && 'Coupon discount applied!'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xl font-bold alfredflix-text-gradient">{selectedPlan.price}</p>
+                      <p className="text-xs text-zinc-400">per month</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -169,17 +260,39 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
               <Users className="w-4 h-4 text-amber-500" />
               <span>Referral Code (Optional)</span>
             </Label>
-            <Input
-              id="referralCode"
-              name="referralCode"
-              value={formData.referralCode}
-              onChange={handleInputChange}
-              placeholder="Enter friend's username"
-              className="bg-zinc-800 border-zinc-600 text-white"
-              data-testid="signup-referral"
-            />
+            <div className="relative">
+              <Input
+                id="referralCode"
+                name="referralCode"
+                value={formData.referralCode}
+                onChange={handleInputChange}
+                placeholder="Enter friend's username"
+                className={`bg-zinc-800 border-zinc-600 text-white pr-8 ${
+                  referralValid === true ? 'border-green-500' : 
+                  referralValid === false ? 'border-red-500' : ''
+                }`}
+                data-testid="signup-referral"
+              />
+              {validatingReferral && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {referralValid === true && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500">✓</div>
+              )}
+              {referralValid === false && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-red-500">✗</div>
+              )}
+            </div>
             <p className="text-xs text-zinc-400 mt-1">
-              Get your first month for just $1 when referred by a friend!
+              {referralValid === true ? (
+                <span className="text-green-500">Valid referral - Get your first month for $1!</span>
+              ) : referralValid === false ? (
+                <span className="text-red-500">Invalid referral code</span>
+              ) : (
+                'Get your first month for just $1 when referred by a friend!'
+              )}
             </p>
           </div>
 
@@ -189,14 +302,36 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
               <Gift className="w-4 h-4 text-amber-500" />
               <span>Coupon Code (Optional)</span>
             </Label>
-            <Input
-              id="couponCode"
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              placeholder="Enter coupon code"
-              className="bg-zinc-800 border-zinc-600 text-white"
-              data-testid="signup-coupon"
-            />
+            <div className="relative">
+              <Input
+                id="couponCode"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                placeholder="Enter coupon code"
+                className={`bg-zinc-800 border-zinc-600 text-white pr-8 ${
+                  couponValid === true ? 'border-green-500' : 
+                  couponValid === false ? 'border-red-500' : ''
+                }`}
+                data-testid="signup-coupon"
+              />
+              {validatingCoupon && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {couponValid === true && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500">✓</div>
+              )}
+              {couponValid === false && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-red-500">✗</div>
+              )}
+            </div>
+            {couponValid === true && (
+              <p className="text-xs text-green-500 mt-1">Valid coupon - Discount applied!</p>
+            )}
+            {couponValid === false && (
+              <p className="text-xs text-red-500 mt-1">Invalid coupon code</p>
+            )}
           </div>
 
           <Button
@@ -211,7 +346,7 @@ export function SignupModal({ open, onOpenChange, plan = 'standard' }: SignupMod
                 <span>Creating Account...</span>
               </div>
             ) : (
-              `Continue to Payment - ${selectedPlan.price}/month`
+              `Continue to Payment - ${discountedPrice || selectedPlan.price}/month`
             )}
           </Button>
 

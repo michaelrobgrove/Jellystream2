@@ -52,7 +52,7 @@ const SubscribeForm = ({ plan }: { plan: 'standard' | 'premium' }) => {
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: `${window.location.origin}/dashboard`,
+        return_url: `${window.location.origin}/payment-success`,
       },
     });
 
@@ -243,7 +243,10 @@ export default function Subscribe() {
     // Create subscription with coupon support
     const requestData: any = { plan: planParam || 'standard' };
     if (couponParam) requestData.coupon = couponParam;
-    if (referralParam === 'true') requestData.isReferral = true;
+    if (referralParam && referralParam !== 'true') {
+      // referralParam contains the actual referral code
+      requestData.referralCode = referralParam;
+    }
 
     apiRequest("POST", "/api/create-subscription", requestData)
       .then((res) => res.json())

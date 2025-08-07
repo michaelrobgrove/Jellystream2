@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import * as referral from "./referral";
 import { insertContactMessageSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -1003,6 +1004,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Validate referral code endpoint
+  app.post("/api/validate-referral", async (req, res) => {
+    try {
+      const { referralCode } = req.body;
+      
+      if (!referralCode) {
+        return res.json({ valid: false, message: "Referral code required" });
+      }
+      
+      // Check if referral user exists
+      const referralUser = await storage.getUserByUsername(referralCode);
+      if (!referralUser) {
+        return res.json({ valid: false, message: "Invalid referral code" });
+      }
+      
+      res.json({ valid: true, message: "Valid referral code - $1 first month!" });
+    } catch (error) {
+      console.error('Referral validation error:', error);
+      res.json({ valid: false, message: "Validation failed" });
+    }
+  });
+
+  // Validate coupon code endpoint
+  app.post("/api/validate-coupon", async (req, res) => {
+    try {
+      const { coupon } = req.body;
+      
+      if (!coupon) {
+        return res.json({ valid: false, message: "Coupon code required" });
+      }
+      
+      // Validate with Stripe
+      const couponData = await stripe.coupons.retrieve(coupon);
+      if (!couponData.valid) {
+        return res.json({ valid: false, message: "Coupon expired or invalid" });
+      }
+      
+      const discountText = couponData.percent_off 
+        ? `${couponData.percent_off}% off`
+        : `$${(couponData.amount_off! / 100).toFixed(2)} off`;
+        
+      res.json({ 
+        valid: true, 
+        message: `Valid coupon - ${discountText}!`,
+        discount: {
+          percent_off: couponData.percent_off,
+          amount_off: couponData.amount_off
+        }
+      });
+    } catch (error) {
+      console.error('Coupon validation error:', error);
+      res.json({ valid: false, message: "Invalid coupon code" });
+    }
+  });
+
   // Jellyfin proxy endpoints (to handle CORS and authentication)
   app.get("/api/jellyfin/*", (req, res) => {
     // In a real implementation, you might proxy requests to Jellyfin
@@ -1058,15 +1114,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/create-subscription", async (req, res) => {
     try {
-      const { plan, coupon, isReferral } = req.body;
+      const { plan, coupon, referralCode } = req.body;
       let amount = plan === 'premium' ? 1499 : 999; // $14.99 or $9.99 in cents
       
       const metadata: any = { plan: plan || 'standard', type: 'subscription' };
       
       // Apply referral discount (new users get $1 first month)
-      if (isReferral) {
-        amount = 100; // $1 for first month with referral
-        metadata.referral_discount = 'true';
+      if (referralCode) {
+        // Validate referral code first
+        const referralUser = await storage.getUserByUsername(referralCode);
+        if (referralUser) {
+          amount = 100; // $1 for first month with referral
+          metadata.referral_discount = 'true';
+          metadata.referral_code = referralCode;
+        }
       }
       
       const paymentIntentData: any = {
@@ -1111,6 +1172,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res
         .status(500)
         .json({ message: "Error creating subscription: " + error.message });
+    }
+  });
+
+  // Complete signup after successful payment
+  app.post("/api/complete-signup", async (req, res) => {
+    try {
+      const { username, email, password, planType, referralCode, couponCode, paymentIntentId } = req.body;
+      
+      if (!paymentIntentId) {
+        return res.status(400).json({ error: "Payment intent ID required" });
+      }
+      
+      // Verify payment was successful
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (paymentIntent.status !== 'succeeded') {
+        return res.status(400).json({ error: "Payment not completed" });
+      }
+      
+      // Create user account now that payment is confirmed
+      const insertUser = { username, email, password, planType };
+      const newUser = await storage.createUser(insertUser);
+      
+      // Process referral credits if applicable
+      if (referralCode) {
+        const referralUser = await storage.getUserByUsername(referralCode);
+        if (referralUser) {
+          // Process referral through referral service
+          const referralService = new ReferralService();
+          await referralService.processReferral(referralUser.id, newUser.id);
+        }
+      }
+      
+      res.json({ success: true, message: "Account created successfully", user: newUser });
+    } catch (error: any) {
+      console.error('Complete signup error:', error);
+      res.status(500).json({ error: "Failed to complete signup: " + error.message });
     }
   });
 

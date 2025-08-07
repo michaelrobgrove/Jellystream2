@@ -50,6 +50,12 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/subscribe" component={Subscribe} />
+      <Route path="/payment-success">
+        {() => {
+          const PaymentSuccess = lazy(() => import('./pages/payment-success'));
+          return <PaymentSuccess />;
+        }}
+      </Route>
       <Route path="/account">
         <ProtectedRoute>
           <Account />
