@@ -22,6 +22,7 @@ export interface JellyfinItem {
   ProductionYear?: number;
   CommunityRating?: number;
   RunTimeTicks?: number;
+  OfficialRating?: string;
   ImageTags?: {
     Primary?: string;
     Backdrop?: string;
@@ -33,6 +34,11 @@ export interface JellyfinItem {
   SeriesName?: string;
   ParentIndexNumber?: number;
   IndexNumber?: number;
+  ProviderIds?: {
+    Tmdb?: string;
+    Tvdb?: string;
+    Imdb?: string;
+  };
 }
 
 export interface JellyfinAuthResult {

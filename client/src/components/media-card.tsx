@@ -24,11 +24,11 @@ export function MediaCard({
 }: MediaCardProps) {
   const [fanartImageUrl, setFanartImageUrl] = useState<string | null>(null);
 
-  // Updated size classes to use 3:2 aspect ratio
+  // Updated size classes with better mobile responsiveness and 3:2 aspect ratio
   const sizeClasses = {
-    small: 'w-40 h-60',    // 3:2 ratio (40*1.5 = 60)
-    medium: 'w-48 h-72',   // 3:2 ratio (48*1.5 = 72) 
-    large: 'w-64 h-96'     // 3:2 ratio (64*1.5 = 96)
+    small: 'w-28 sm:w-32 md:w-40 flex-shrink-0',    // Mobile-first responsive
+    medium: 'w-36 sm:w-44 md:w-48 flex-shrink-0',   // Better mobile sizing
+    large: 'w-44 sm:w-56 md:w-64 flex-shrink-0'     // Larger for continue watching
   };
 
   // Get FanArt image if available
@@ -78,11 +78,11 @@ export function MediaCard({
 
   return (
     <Card 
-      className={`media-card ${sizeClasses[size]} relative group cursor-pointer overflow-hidden bg-zinc-900 border-zinc-800`}
+      className={`media-card ${sizeClasses[size]} aspect-[3/2] relative group cursor-pointer overflow-hidden bg-zinc-900 border-zinc-800`}
       onClick={onClick}
       data-testid={`media-card-${item.Id}`}
     >
-      <div className="aspect-[3/2] relative overflow-hidden">
+      <div className="w-full h-full relative overflow-hidden">
         <img 
           src={displayImage}
           alt={item.Name}
