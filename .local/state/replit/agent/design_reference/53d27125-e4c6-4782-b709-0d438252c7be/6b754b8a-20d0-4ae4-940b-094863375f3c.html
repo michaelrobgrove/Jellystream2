@@ -1,0 +1,921 @@
+<html lang="en" class="h-full bg-zinc-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlfredFlix - Your Curated Cinematic Sanctuary</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#f59e0b',
+                        'primary-dark': '#d97706',
+                        'surface': '#1a1a1a',
+                        'surface-dark': '#0f0f0f',
+                        'text-primary': '#fafafa',
+                        'text-secondary': '#a1a1aa',
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                        'serif': ['Playfair Display', 'serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.6s ease-out',
+                        'scale-in': 'scaleIn 0.3s ease-out',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .hero-gradient {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+        }
+        .luxury-card {
+            background: linear-gradient(145deg, rgba(250,250,250,0.02) 0%, rgba(250,250,250,0.01) 100%);
+            border: 1px solid rgba(245,158,11,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .media-card:hover .media-overlay {
+            opacity: 1;
+        }
+        .media-overlay {
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+
+<body class="h-full font-sans text-text-primary">
+    <!-- @COMPONENT: NavigationHeader [handles routing between marketing and streaming] -->
+    <nav class="fixed top-0 w-full z-50 bg-zinc-900/80 backdrop-blur-lg border-b border-zinc-800/50" id="mainNavigation">
+        <div class="container mx-auto px-4 lg:px-6">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
+                        <i class="fas fa-crown text-zinc-900 text-lg"></i>
+                    </div>
+                    <span class="font-serif text-xl font-semibold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">
+                        AlfredFlix
+                    </span>
+                </div>
+
+                <!-- Public Navigation -->
+                <div class="hidden md:flex items-center space-x-8" id="publicNav">
+                    <a href="#home" class="text-text-secondary hover:text-primary transition-colors cursor-pointer">Home</a>
+                    <a href="#pricing" class="text-text-secondary hover:text-primary transition-colors cursor-pointer">Pricing</a>
+                    <a href="#contact" class="text-text-secondary hover:text-primary transition-colors cursor-pointer">Contact</a>
+                    <button onclick="showAuthModal()" class="px-4 py-2 bg-gradient-to-r from-primary to-primary-dark text-zinc-900 font-medium rounded-lg hover:shadow-lg hover:shadow-primary/25 transition-all">
+                        Sign In
+                    </button>
+                </div>
+
+                <!-- Authenticated Navigation -->
+                <div class="hidden md:flex items-center space-x-6" id="authNav" style="display: none;">
+                    <div class="flex items-center space-x-4">
+                        <a href="#browse" class="text-text-secondary hover:text-primary transition-colors cursor-pointer">Browse</a>
+                        <a href="#search" class="text-text-secondary hover:text-primary transition-colors cursor-pointer">Search</a>
+                        <a href="#account" class="text-text-secondary hover:text-primary transition-colors cursor-pointer">Account</a>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="text-sm text-text-secondary" data-bind="user.plan">Premium</span>
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
+                            <i class="fas fa-user text-zinc-900 text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile Menu -->
+                <button class="md:hidden text-text-secondary" onclick="toggleMobileMenu()">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+    <!-- @END_COMPONENT: NavigationHeader -->
+
+    <!-- @COMPONENT: PublicLandingPage [marketing content for non-authenticated users] -->
+    <div id="publicContent" class="animate-fade-in">
+        <!-- Hero Section -->
+        <section class="hero-gradient min-h-screen flex items-center pt-16">
+            <!-- Background Video/Image -->
+            <!-- A cinematic view of a luxury home theater with warm ambient lighting -->
+            <div class="absolute inset-0 overflow-hidden">
+                <img src="https://pixabay.com/get/g9f26285f6ee20b55bda4cddfeef6399b14b5d75911b91c5c921a62d6271f7413823420447eee0a0a3bfc387bacc3a84497a9b41351899d33fbca6c1816d89cfb_1280.png" 
+                     alt="Luxury home theater" 
+                     class="w-full h-full object-cover opacity-20">
+                <div class="absolute inset-0 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-transparent"></div>
+            </div>
+            
+            <div class="container mx-auto px-4 lg:px-6 relative z-10">
+                <div class="max-w-3xl">
+                    <h1 class="font-serif text-4xl md:text-6xl lg:text-7xl font-semibold leading-tight mb-6 animate-slide-up">
+                        Your Curated <span class="bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">Cinematic Sanctuary</span> Awaits.
+                    </h1>
+                    <p class="text-xl md:text-2xl text-text-secondary mb-8 leading-relaxed animate-slide-up" style="animation-delay: 0.2s;">
+                        Discover a world of exceptional films and shows, hand-selected for the discerning viewer. Experience entertainment as it was always intended – without interruptions, at your service.
+                    </p>
+                    <div class="animate-slide-up" style="animation-delay: 0.4s;">
+                        <a href="#pricing" class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-primary to-primary-dark text-zinc-900 font-semibold rounded-lg text-lg hover:shadow-xl hover:shadow-primary/30 transition-all cursor-pointer">
+                            <i class="fas fa-key mr-3"></i>
+                            Grant Access
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="py-20 bg-surface" id="about">
+            <div class="container mx-auto px-4 lg:px-6">
+                <div class="max-w-4xl mx-auto text-center">
+                    <h2 class="font-serif text-3xl md:text-5xl font-semibold mb-8">
+                        Your Personal <span class="text-primary">Cinematic Concierge</span>
+                    </h2>
+                    <p class="text-lg md:text-xl text-text-secondary leading-relaxed">
+                        At AlfredFLIX, we believe your entertainment experience should be as refined as your tastes. Say goodbye to endless scrolling and disruptive advertisements. We are your dedicated cinematic concierge, presenting a meticulously handpicked library of films and shows, ensuring every selection feels like a bespoke recommendation crafted just for you.
+                    </p>
+                    <p class="text-lg md:text-xl text-text-secondary leading-relaxed mt-6">
+                        Experience the convenience of content you truly desire, always delivered without upcharges or hidden fees. We are at your service, always.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section class="py-20 bg-zinc-900" id="pricing">
+            <div class="container mx-auto px-4 lg:px-6">
+                <div class="text-center mb-16">
+                    <h2 class="font-serif text-3xl md:text-5xl font-semibold mb-4">
+                        Choose Your <span class="text-primary">Bespoke Experience</span>
+                    </h2>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                    <!-- Standard Plan -->
+                    <div class="luxury-card rounded-2xl p-8 relative">
+                        <div class="text-center">
+                            <h3 class="font-serif text-2xl font-semibold mb-2">Standard</h3>
+                            <div class="mb-6">
+                                <span class="text-4xl font-bold">$9.99</span>
+                                <span class="text-text-secondary">/month</span>
+                                <p class="text-sm text-text-secondary mt-1">13.75 CAD</p>
+                            </div>
+                            
+                            <ul class="space-y-4 mb-8 text-left">
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>1080p Full HD Content</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>2 Simultaneous Streams</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Absolutely No Ads</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Manual Requests (Up to 10/month)</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Offline Viewing Included</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Android, Android TV, Web Compatible</span>
+                                </li>
+                            </ul>
+                            
+                            <a href="https://buy.stripe.com/5kQbJ2b5I1ehept7Q8efC00" 
+                               class="block w-full py-3 bg-gradient-to-r from-zinc-700 to-zinc-600 text-center rounded-lg font-medium hover:from-zinc-600 hover:to-zinc-500 transition-all">
+                                Select Standard
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Premium Plan -->
+                    <div class="luxury-card rounded-2xl p-8 relative border-primary/30">
+                        <div class="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                            <span class="bg-gradient-to-r from-primary to-primary-dark text-zinc-900 px-4 py-1 rounded-full text-sm font-medium">
+                                Most Popular
+                            </span>
+                        </div>
+                        
+                        <div class="text-center">
+                            <h3 class="font-serif text-2xl font-semibold mb-2">Premium</h3>
+                            <div class="mb-6">
+                                <span class="text-4xl font-bold">$14.99</span>
+                                <span class="text-text-secondary">/month</span>
+                                <p class="text-sm text-text-secondary mt-1">20.63 CAD</p>
+                            </div>
+                            
+                            <ul class="space-y-4 mb-8 text-left">
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span><strong>4K Ultra HD</strong> Content</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span><strong>4 Simultaneous</strong> Streams</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Absolutely No Ads</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span><strong>Automatic, Unlimited</strong> Requests</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Offline Viewing Included</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Android, Android TV, Web Compatible</span>
+                                </li>
+                            </ul>
+                            
+                            <a href="https://buy.stripe.com/14AaEYc9M8GJ5SX4DWefC01" 
+                               class="block w-full py-3 bg-gradient-to-r from-primary to-primary-dark text-zinc-900 text-center rounded-lg font-medium hover:shadow-lg hover:shadow-primary/25 transition-all">
+                                Select Premium
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section class="py-20 bg-surface" id="contact">
+            <div class="container mx-auto px-4 lg:px-6">
+                <div class="max-w-2xl mx-auto">
+                    <div class="text-center mb-12">
+                        <h2 class="font-serif text-3xl md:text-4xl font-semibold mb-4">
+                            May We Be of <span class="text-primary">Assistance?</span>
+                        </h2>
+                        <p class="text-lg text-text-secondary">
+                            Our concierge team is at your disposal for any inquiries, technical assistance, or bespoke requests.
+                        </p>
+                    </div>
+
+                    <form class="luxury-card rounded-2xl p-8" data-implementation="Should integrate with existing contact form API">
+                        <div class="grid md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Your Name (Required)</label>
+                                <input type="text" required class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Your Email (Required)</label>
+                                <input type="email" required class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent">
+                            </div>
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">Your Phone (Optional)</label>
+                            <input type="tel" class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent">
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">Your Message (Required)</label>
+                            <textarea required rows="4" class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-none"></textarea>
+                        </div>
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-primary to-primary-dark text-zinc-900 font-medium rounded-lg hover:shadow-lg hover:shadow-primary/25 transition-all">
+                            <i class="fas fa-paper-plane mr-2"></i>
+                            Send Request
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </div>
+    <!-- @END_COMPONENT: PublicLandingPage -->
+
+    <!-- @COMPONENT: AuthenticationModal [Jellyfin login with plan detection] -->
+    <div id="authModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="w-full max-w-md luxury-card rounded-2xl p-8 animate-scale-in">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
+                    <i class="fas fa-crown text-zinc-900 text-2xl"></i>
+                </div>
+                <h2 class="font-serif text-2xl font-semibold mb-2">Welcome Back</h2>
+                <p class="text-text-secondary">Access your cinematic sanctuary</p>
+            </div>
+
+            <form id="loginForm" data-implementation="Should authenticate with Jellyfin API and detect plan">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Username</label>
+                        <input type="text" id="username" required 
+                               class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="password" required 
+                               class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent">
+                    </div>
+                    
+                    <div id="authError" class="hidden bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm text-center">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        <span>Invalid credentials. Please try again.</span>
+                    </div>
+                    
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-primary to-primary-dark text-zinc-900 font-medium rounded-lg hover:shadow-lg hover:shadow-primary/25 transition-all">
+                        <i class="fas fa-sign-in-alt mr-2"></i>
+                        Sign In
+                    </button>
+                </div>
+            </form>
+
+            <button onclick="hideAuthModal()" class="absolute top-4 right-4 text-text-secondary hover:text-primary transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: AuthenticationModal -->
+
+    <!-- @COMPONENT: StreamingDashboard [Netflix-like interface post-authentication] -->
+    <div id="streamingContent" class="hidden pt-16">
+        <!-- Hero Banner -->
+        <section class="relative h-screen overflow-hidden">
+            <!-- Featured content background image -->
+            <!-- A dramatic scene from a popular movie with cinematic lighting -->
+            <img src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?ixlib=rb-4.0.3&auto=format&fit=crop&w=2725&q=80" 
+                 alt="Featured movie scene" 
+                 class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-r from-zinc-900 via-zinc-900/60 to-transparent"></div>
+            
+            <div class="absolute bottom-0 left-0 p-8 lg:p-16 max-w-2xl">
+                <h1 class="font-serif text-4xl lg:text-6xl font-bold mb-4" data-bind="featuredContent.title">The Crown</h1>
+                <p class="text-lg lg:text-xl text-text-secondary mb-6 leading-relaxed" data-bind="featuredContent.description">
+                    Follows the political rivalries and romance of Queen Elizabeth II's reign and the events that shaped the second half of the twentieth century.
+                </p>
+                <div class="flex items-center space-x-4 mb-6">
+                    <span class="bg-primary text-zinc-900 px-2 py-1 rounded text-sm font-medium">4K UHD</span>
+                    <span class="text-text-secondary">2023</span>
+                    <span class="text-text-secondary">TV-MA</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="flex items-center px-8 py-3 bg-white text-zinc-900 font-semibold rounded-lg hover:bg-gray-200 transition-all">
+                        <i class="fas fa-play mr-3"></i>
+                        Play
+                    </button>
+                    <button class="flex items-center px-8 py-3 bg-zinc-700/80 text-white font-semibold rounded-lg hover:bg-zinc-600/80 transition-all">
+                        <i class="fas fa-info-circle mr-3"></i>
+                        More Info
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Content Rows -->
+        <div class="bg-zinc-900 pb-20">
+            <!-- Continue Watching -->
+            <section class="px-4 lg:px-16 -mt-32 relative z-10">
+                <h2 class="text-2xl font-semibold mb-6 flex items-center">
+                    <i class="fas fa-play-circle text-primary mr-3"></i>
+                    Continue Watching
+                </h2>
+                <!-- @MAP: continueWatching.map(item => ( -->
+                <div class="flex space-x-4 overflow-x-auto pb-4">
+                    <div class="media-card flex-shrink-0 w-80 relative group cursor-pointer">
+                        <!-- Movie poster or thumbnail -->
+                        <img src="https://images.unsplash.com/photo-1596727147705-61a532a659bd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=225" 
+                             alt="Continuing movie" 
+                             class="w-full h-44 object-cover rounded-lg">
+                        <div class="media-overlay absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-play text-white text-3xl"></i>
+                        </div>
+                        <div class="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80">
+                            <h3 class="font-semibold text-sm mb-1" data-bind="item.title">Inception</h3>
+                            <div class="w-full bg-zinc-700 h-1 rounded-full mb-1">
+                                <div class="bg-primary h-1 rounded-full" style="width: 65%" data-bind="item.progress"></div>
+                            </div>
+                            <p class="text-xs text-text-secondary" data-bind="item.timeRemaining">23 minutes left</p>
+                        </div>
+                    </div>
+                    <!-- Repeat for more items -->
+                </div>
+                <!-- @END_MAP )) -->
+            </section>
+
+            <!-- Next Up -->
+            <section class="px-4 lg:px-16 mt-12">
+                <h2 class="text-2xl font-semibold mb-6 flex items-center">
+                    <i class="fas fa-clock text-primary mr-3"></i>
+                    Next Up
+                </h2>
+                <!-- @MAP: nextUp.map(item => ( -->
+                <div class="flex space-x-4 overflow-x-auto pb-4">
+                    <div class="media-card flex-shrink-0 w-72 relative group cursor-pointer">
+                        <!-- Episode thumbnail -->
+                        <img src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=225" 
+                             alt="Next episode" 
+                             class="w-full h-40 object-cover rounded-lg">
+                        <div class="media-overlay absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-play text-white text-2xl"></i>
+                        </div>
+                        <div class="mt-3">
+                            <h3 class="font-semibold text-sm mb-1" data-bind="item.showTitle">Breaking Bad</h3>
+                            <p class="text-xs text-text-secondary" data-bind="item.episodeInfo">S3 E2 - "Caballo Sin Nombre"</p>
+                        </div>
+                    </div>
+                    <!-- Repeat for more items -->
+                </div>
+                <!-- @END_MAP )) -->
+            </section>
+
+            <!-- Movies by Genre -->
+            <section class="px-4 lg:px-16 mt-12">
+                <h2 class="text-2xl font-semibold mb-6 flex items-center">
+                    <i class="fas fa-film text-primary mr-3"></i>
+                    Action & Adventure
+                </h2>
+                <!-- @MAP: movies.filter(m => m.genres.includes('Action')).map(movie => ( -->
+                <div class="flex space-x-4 overflow-x-auto pb-4">
+                    <div class="media-card flex-shrink-0 w-48 relative group cursor-pointer">
+                        <!-- Movie poster -->
+                        <img src="https://images.unsplash.com/photo-1595769816263-9b910be24d5f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=450" 
+                             alt="Action movie poster" 
+                             class="w-full h-72 object-cover rounded-lg">
+                        <div class="media-overlay absolute inset-0 bg-black/60 rounded-lg flex flex-col items-center justify-center">
+                            <i class="fas fa-play text-white text-2xl mb-2"></i>
+                            <span class="bg-primary text-zinc-900 px-2 py-1 rounded text-xs font-medium">4K UHD</span>
+                        </div>
+                        <div class="mt-2">
+                            <h3 class="font-semibold text-sm" data-bind="movie.title">Mad Max: Fury Road</h3>
+                        </div>
+                    </div>
+                    <!-- Repeat for more movies -->
+                </div>
+                <!-- @END_MAP )) -->
+            </section>
+
+            <!-- TV Shows -->
+            <section class="px-4 lg:px-16 mt-12">
+                <h2 class="text-2xl font-semibold mb-6 flex items-center">
+                    <i class="fas fa-tv text-primary mr-3"></i>
+                    Popular TV Shows
+                </h2>
+                <!-- @MAP: shows.map(show => ( -->
+                <div class="flex space-x-4 overflow-x-auto pb-4">
+                    <div class="media-card flex-shrink-0 w-48 relative group cursor-pointer">
+                        <!-- Show poster -->
+                        <img src="https://images.unsplash.com/photo-1594909122845-11baa439b7bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=450" 
+                             alt="TV show poster" 
+                             class="w-full h-72 object-cover rounded-lg">
+                        <div class="media-overlay absolute inset-0 bg-black/60 rounded-lg flex flex-col items-center justify-center">
+                            <i class="fas fa-play text-white text-2xl mb-2"></i>
+                            <span class="bg-zinc-700 text-white px-2 py-1 rounded text-xs">HD</span>
+                        </div>
+                        <div class="mt-2">
+                            <h3 class="font-semibold text-sm" data-bind="show.title">Stranger Things</h3>
+                        </div>
+                    </div>
+                    <!-- Repeat for more shows -->
+                </div>
+                <!-- @END_MAP )) -->
+            </section>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: StreamingDashboard -->
+
+    <!-- @COMPONENT: MediaDetailModal [quality selection and playback options] -->
+    <div id="mediaDetailModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="w-full max-w-4xl luxury-card rounded-2xl overflow-hidden animate-scale-in">
+            <div class="relative">
+                <!-- Media backdrop -->
+                <img src="https://pixabay.com/get/gfacbae894afd545ce953c61f3245cfdfcc1df4e1de4c27d6f7600afab984cec732049780f761f592176464c03b3240f5c6d5e8f58e5b519c9bbc6eef1815d228_1280.jpg" 
+                     alt="Media backdrop" 
+                     class="w-full h-64 object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                
+                <button onclick="hideMediaDetail()" class="absolute top-4 right-4 text-white hover:text-primary transition-colors">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <div class="p-8">
+                <div class="grid md:grid-cols-3 gap-8">
+                    <!-- Media Info -->
+                    <div class="md:col-span-2">
+                        <h1 class="font-serif text-3xl font-bold mb-4" data-bind="selectedMedia.title">Inception</h1>
+                        <div class="flex items-center space-x-4 mb-4">
+                            <span class="text-primary font-medium" data-bind="selectedMedia.year">2010</span>
+                            <span class="text-text-secondary" data-bind="selectedMedia.rating">PG-13</span>
+                            <span class="text-text-secondary" data-bind="selectedMedia.runtime">148 min</span>
+                        </div>
+                        <p class="text-text-secondary mb-6 leading-relaxed" data-bind="selectedMedia.overview">
+                            A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.
+                        </p>
+                        
+                        <!-- Quality Selection -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold mb-3">Quality Options</h3>
+                            <div class="space-y-2" data-implementation="Should show available qualities based on user plan">
+                                <label class="flex items-center p-3 luxury-card rounded-lg cursor-pointer hover:border-primary/30 transition-colors">
+                                    <input type="radio" name="quality" value="4k" class="mr-3" data-mock="true">
+                                    <div class="flex-1">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="font-medium">4K Ultra HD</span>
+                                            <span class="bg-primary text-zinc-900 px-2 py-1 rounded text-xs font-medium">Premium</span>
+                                        </div>
+                                        <p class="text-sm text-text-secondary">Best quality, requires Premium plan</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-3 luxury-card rounded-lg cursor-pointer hover:border-primary/30 transition-colors">
+                                    <input type="radio" name="quality" value="1080p" class="mr-3" checked data-mock="true">
+                                    <div class="flex-1">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="font-medium">1080p Full HD</span>
+                                        </div>
+                                        <p class="text-sm text-text-secondary">High quality streaming</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-3 luxury-card rounded-lg cursor-pointer hover:border-primary/30 transition-colors">
+                                    <input type="radio" name="quality" value="auto" class="mr-3" data-mock="true">
+                                    <div class="flex-1">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="font-medium">Always Highest Quality</span>
+                                        </div>
+                                        <p class="text-sm text-text-secondary">Automatically select best available quality</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex items-center space-x-4">
+                            <button onclick="startPlayback()" class="flex items-center px-6 py-3 bg-white text-zinc-900 font-semibold rounded-lg hover:bg-gray-200 transition-all">
+                                <i class="fas fa-play mr-2"></i>
+                                Play Now
+                            </button>
+                            <button class="flex items-center px-6 py-3 bg-zinc-700 text-white font-semibold rounded-lg hover:bg-zinc-600 transition-all">
+                                <i class="fas fa-plus mr-2"></i>
+                                My List
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Media Poster -->
+                    <div>
+                        <!-- Movie poster -->
+                        <img src="https://images.unsplash.com/photo-1595769816263-9b910be24d5f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=450" 
+                             alt="Movie poster" 
+                             class="w-full rounded-lg shadow-lg">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: MediaDetailModal -->
+
+    <!-- @COMPONENT: VideoPlayer [Video.js with pre-roll and Jellyfin integration] -->
+    <div id="videoPlayer" class="fixed inset-0 z-50 bg-black hidden">
+        <div class="w-full h-full relative">
+            <!-- Video Player Container -->
+            <div id="videoContainer" class="w-full h-full" data-implementation="Should integrate Video.js with 8-second pre-roll alfredflix.mp4">
+                <video id="mainVideo" class="w-full h-full" controls data-mock="true">
+                    <!-- Pre-roll intro video -->
+                    <source src="/alfredflix.mp4" type="video/mp4" data-implementation="8-second intro before main content">
+                    <!-- Main content will be loaded after pre-roll -->
+                </video>
+            </div>
+
+            <!-- Player Controls Overlay -->
+            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <button onclick="exitPlayer()" class="text-white hover:text-primary transition-colors">
+                            <i class="fas fa-arrow-left text-xl"></i>
+                        </button>
+                        <div>
+                            <h2 class="text-xl font-semibold" data-bind="playingMedia.title">Inception</h2>
+                            <p class="text-sm text-gray-300" data-bind="playingMedia.episode">Playing in 4K Ultra HD</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4">
+                        <!-- Stats Toggle -->
+                        <button onclick="toggleStats()" class="text-white hover:text-primary transition-colors">
+                            <i class="fas fa-chart-bar"></i>
+                        </button>
+                        <!-- Quality Settings -->
+                        <button onclick="showQualitySettings()" class="text-white hover:text-primary transition-colors">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Overlay -->
+            <div id="statsOverlay" class="absolute top-4 right-4 bg-black/80 rounded-lg p-4 text-sm hidden" data-implementation="Should show real Jellyfin streaming stats">
+                <h3 class="font-semibold mb-2">Streaming Stats</h3>
+                <div class="space-y-1 text-xs">
+                    <div>Quality: <span class="text-primary" data-bind="stats.quality">4K UHD</span></div>
+                    <div>Bitrate: <span class="text-primary" data-bind="stats.bitrate">25.5 Mbps</span></div>
+                    <div>Direct Stream: <span class="text-green-400" data-bind="stats.directStream">Yes</span></div>
+                    <div>Dropped Frames: <span class="text-primary" data-bind="stats.droppedFrames">0</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: VideoPlayer -->
+
+    <!-- @COMPONENT: SearchInterface [hybrid Jellyfin + TMDB search with Jellyseerr integration] -->
+    <div id="searchInterface" class="hidden pt-16 min-h-screen bg-zinc-900">
+        <div class="container mx-auto px-4 lg:px-6 py-8">
+            <!-- Search Header -->
+            <div class="mb-8">
+                <h1 class="font-serif text-3xl font-semibold mb-4">Search</h1>
+                <div class="relative max-w-2xl">
+                    <input type="text" id="searchInput" placeholder="Search movies, shows, actors..." 
+                           class="w-full px-6 py-4 bg-zinc-800/50 border border-zinc-700/50 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent">
+                    <i class="fas fa-search absolute right-6 top-1/2 transform -translate-y-1/2 text-text-secondary text-xl"></i>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div id="searchResults" class="hidden">
+                <!-- Available on Server -->
+                <section class="mb-12">
+                    <h2 class="text-2xl font-semibold mb-6 flex items-center">
+                        <i class="fas fa-server text-primary mr-3"></i>
+                        Available Now
+                    </h2>
+                    <!-- @MAP: serverResults.map(item => ( -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        <div class="media-card cursor-pointer group">
+                            <img src="https://images.unsplash.com/photo-1595769816263-9b910be24d5f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=450" 
+                                 alt="Available movie" 
+                                 class="w-full h-64 object-cover rounded-lg">
+                            <div class="media-overlay absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-play text-white text-2xl"></i>
+                            </div>
+                            <h3 class="mt-2 font-semibold text-sm" data-bind="item.title">The Dark Knight</h3>
+                        </div>
+                        <!-- Repeat for more results -->
+                    </div>
+                    <!-- @END_MAP )) -->
+                </section>
+
+                <!-- Request from TMDB -->
+                <section>
+                    <h2 class="text-2xl font-semibold mb-6 flex items-center">
+                        <i class="fas fa-plus-circle text-primary mr-3"></i>
+                        Request to Add
+                    </h2>
+                    <!-- @MAP: tmdbResults.map(item => ( -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        <div class="media-card cursor-pointer group relative">
+                            <img src="https://images.unsplash.com/photo-1489599558382-8e4406ca5c21?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=450" 
+                                 alt="Requestable movie" 
+                                 class="w-full h-64 object-cover rounded-lg opacity-75">
+                            <div class="media-overlay absolute inset-0 bg-black/60 rounded-lg flex flex-col items-center justify-center">
+                                <i class="fas fa-download text-primary text-2xl mb-2"></i>
+                                <span class="text-sm font-medium">Request</span>
+                            </div>
+                            <h3 class="mt-2 font-semibold text-sm text-text-secondary" data-bind="item.title">Dune: Part Two</h3>
+                        </div>
+                        <!-- Repeat for more results -->
+                    </div>
+                    <!-- @END_MAP )) -->
+                </section>
+            </div>
+
+            <!-- Empty State -->
+            <div id="searchEmpty" class="text-center py-20">
+                <i class="fas fa-search text-6xl text-zinc-700 mb-4"></i>
+                <h3 class="text-xl font-semibold mb-2">Discover Your Next Obsession</h3>
+                <p class="text-text-secondary">Search for movies, shows, and more from our curated library</p>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: SearchInterface -->
+
+    <!-- Footer (Public Only) -->
+    <footer class="bg-surface-dark border-t border-zinc-800/50 py-8" id="publicFooter">
+        <div class="container mx-auto px-4 lg:px-6 text-center">
+            <div class="flex items-center justify-center space-x-3 mb-4">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
+                    <i class="fas fa-crown text-zinc-900"></i>
+                </div>
+                <span class="font-serif text-lg font-semibold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">
+                    AlfredFlix
+                </span>
+            </div>
+            <p class="text-text-secondary text-sm">
+                Your Curated Cinematic Sanctuary &copy; 2025
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // @STATE: isAuthenticated:boolean = false
+        // @STATE: currentUser:object = null
+        // @STATE: currentPage:string = 'home'
+        // @STATE: searchQuery:string = ''
+        // @STATE: selectedMedia:object = null
+
+        let isAuthenticated = false;
+        let currentUser = null;
+        let currentPage = 'home';
+
+        // Initialize application
+        (function() {
+            console.log('AlfredFlix application initializing...');
+            
+            // Check for existing session
+            // TODO: Implement session checking with Jellyfin API
+            
+            // Set up smooth scrolling for navigation
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+
+            // Set up search functionality
+            setupSearch();
+        })();
+
+        // Authentication functions
+        function showAuthModal() {
+            document.getElementById('authModal').style.display = 'flex';
+            document.getElementById('username').focus();
+        }
+
+        function hideAuthModal() {
+            document.getElementById('authModal').style.display = 'none';
+            document.getElementById('authError').classList.add('hidden');
+        }
+
+        function authenticateUser() {
+            // TODO: Implement Jellyfin authentication
+            // TODO: Detect user plan (Standard vs Premium)
+            // TODO: Configure UI based on plan
+            
+            // Mock authentication success
+            isAuthenticated = true;
+            currentUser = {
+                username: 'demo_user',
+                plan: 'premium',
+                libraries: ['movies', 'shows', 'uhd movies', 'uhd shows']
+            };
+            
+            hideAuthModal();
+            showStreamingInterface();
+        }
+
+        function showStreamingInterface() {
+            document.getElementById('publicContent').style.display = 'none';
+            document.getElementById('publicFooter').style.display = 'none';
+            document.getElementById('publicNav').style.display = 'none';
+            document.getElementById('authNav').style.display = 'flex';
+            document.getElementById('streamingContent').style.display = 'block';
+            
+            // TODO: Load user's continue watching data
+            // TODO: Load next up episodes
+            // TODO: Load library content organized by genre
+        }
+
+        function logout() {
+            isAuthenticated = false;
+            currentUser = null;
+            
+            document.getElementById('streamingContent').style.display = 'none';
+            document.getElementById('authNav').style.display = 'none';
+            document.getElementById('publicNav').style.display = 'flex';
+            document.getElementById('publicContent').style.display = 'block';
+            document.getElementById('publicFooter').style.display = 'block';
+            
+            // TODO: Clear session with Jellyfin API
+        }
+
+        // Media detail functions
+        function showMediaDetail(mediaId) {
+            // TODO: Fetch media details from Jellyfin API
+            // TODO: Check available qualities based on user plan
+            // TODO: Show modal with quality selection options
+            
+            document.getElementById('mediaDetailModal').style.display = 'flex';
+        }
+
+        function hideMediaDetail() {
+            document.getElementById('mediaDetailModal').style.display = 'none';
+        }
+
+        function startPlayback() {
+            // TODO: Initialize Video.js player
+            // TODO: Play 8-second alfredflix.mp4 pre-roll
+            // TODO: Start main content after pre-roll
+            // TODO: Sync progress with Jellyfin
+            
+            hideMediaDetail();
+            document.getElementById('videoPlayer').style.display = 'block';
+        }
+
+        function exitPlayer() {
+            document.getElementById('videoPlayer').style.display = 'none';
+            // TODO: Update watch progress in Jellyfin
+        }
+
+        function toggleStats() {
+            const statsOverlay = document.getElementById('statsOverlay');
+            statsOverlay.classList.toggle('hidden');
+            // TODO: Fetch real streaming stats from Jellyfin
+        }
+
+        // Search functions
+        function setupSearch() {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                let searchTimeout;
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        performSearch(this.value);
+                    }, 300);
+                });
+            }
+        }
+
+        function performSearch(query) {
+            if (!query.trim()) {
+                document.getElementById('searchResults').classList.add('hidden');
+                document.getElementById('searchEmpty').style.display = 'block';
+                return;
+            }
+
+            // TODO: Search Jellyfin server content
+            // TODO: Search TMDB database
+            // TODO: Show results with request buttons for unavailable content
+            // TODO: Integrate with Jellyseerr for requests
+            
+            document.getElementById('searchEmpty').style.display = 'none';
+            document.getElementById('searchResults').classList.remove('hidden');
+        }
+
+        function requestContent(tmdbId, mediaType) {
+            // TODO: Send request to Jellyseerr API
+            // TODO: Show confirmation message
+            // TODO: Update UI to show request status
+        }
+
+        // Mobile menu
+        function toggleMobileMenu() {
+            // TODO: Implement mobile navigation menu
+        }
+
+        // Form submission
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const username = document.getElementById('username').value;
+                    const password = document.getElementById('password').value;
+                    
+                    // TODO: Authenticate with Jellyfin API
+                    authenticateUser();
+                });
+            }
+
+            // Contact form submission
+            const contactForm = document.querySelector('form[data-implementation*="contact form"]');
+            if (contactForm) {
+                contactForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    // TODO: Submit contact form to existing API
+                    alert('Thank you for reaching out to AlfredFLIX. Your message has been received, and our concierge team will be in touch shortly to assist you.');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
