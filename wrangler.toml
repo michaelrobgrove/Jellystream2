@@ -1,24 +1,17 @@
 name = "alfredflix"
 compatibility_date = "2024-12-01"
-compatibility_flags = [
-  "nodejs_compat",
-  "experimental"
-]
+pages_build_output_dir = "dist/public"
 
 [env.production]
 vars = { NODE_ENV = "production" }
 
-# For database, you'll need to set up Cloudflare D1 or use an external PostgreSQL
-# Uncomment and configure if using D1:
-# [[env.production.d1_databases]]
-# binding = "DB"
-# database_name = "alfredflix-db"
-# database_id = "your-d1-database-id"
-
-# Environment variables (set via wrangler secret)
-# DATABASE_URL
-# STRIPE_SECRET_KEY  
-# VITE_STRIPE_PUBLIC_KEY
-# MAILGUN_API_KEY
-# MAILGUN_DOMAIN
-# MAILGUN_FROM_EMAIL
+# Environment variables that will be set in Cloudflare dashboard
+# DATABASE_URL - postgresql://neondb_owner:npg_zD54TAmZtWqU@ep-aged-dream-ad7ga94a.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require
+# STRIPE_SECRET_KEY - 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
+# STRIPE_WEBHOOK_SECRET - whsec_Tn2UjxEFfXoU9UXIrgWwautxvu94jm8b
+# VITE_STRIPE_PUBLIC_KEY - pk_live_51QFjyeLb3c2t6e1YQnoQBgTVizVhLCzz3x1UrunTuvBIdc6wnbZf1FnLDxs0QcsogJEtn9xg2LQ8tPmwoUiWbcZx00hiX9x6Yj
+# JELLYFIN_SERVER_URL - https://watch.alfredflix.stream
+# TMDB_API_KEY - 88c86aad48e750e724b36296cc69383f
+# MAILGUN_API_KEY - bc85eeb78483bcff935bf8a8cf457bc9-812b35f5-a844c816
+# MAILGUN_DOMAIN - alfredflix.stream
+# MAILGUN_FROM_EMAIL - postmaster@alfredflix.stream
