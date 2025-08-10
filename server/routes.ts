@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import * as referral from "./referral";
+
 import { insertContactMessageSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";

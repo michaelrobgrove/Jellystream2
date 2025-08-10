@@ -1,7 +1,7 @@
-import { type User, type InsertUser, type ContactMessage, type InsertContactMessage, type Coupon, type InsertCoupon, users, contactMessages, coupons } from "@shared/schema";
+import { type User, type InsertUser, type ContactMessage, type InsertContactMessage, type Coupon, type InsertCoupon, users, contactMessages, coupons , coupons} from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
